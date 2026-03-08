@@ -1,17 +1,40 @@
-# expanse_tracker_flutter
+# Expense Tracker Flutter
 
-mini flutter project.
+A mobile expense tracker app built with Flutter and Supabase as the backend.
 
-## Getting Started
+## Tech Stack
+- Flutter
+- Supabase (Auth + Database)
+- Riverpod (State Management)
+- fl_chart (Charts)
 
-This project is a starting point for a Flutter application.
+## Features
+- Login & Register
+- Google Login
+- Dashboard with total balance
+- Add transactions (income & expense)
+- Transaction history with filter
+- Analytics with charts
+- Profile management
 
-A few resources to get you started if this is your first Flutter project:
+## Setup
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+1. Clone this repository
+2. Run `flutter pub get`
+3. Create a new project at [supabase.com](https://supabase.com)
+4. Run the SQL schema located in `supabase/schema.sql`
+5. Open `lib/main.dart` and replace:
+```dart
+   url: 'YOUR_SUPABASE_URL',
+   anonKey: 'YOUR_SUPABASE_ANON_KEY',
+```
+   with your Supabase project URL and anon key
+6. Run `flutter run`
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Build APK
+```
+flutter build apk --release
+```
+
+## Developer
+Developed by YRJ & Claude
