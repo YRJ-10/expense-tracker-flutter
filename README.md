@@ -17,6 +17,12 @@ A mobile expense tracker app built with Flutter and Supabase as the backend.
 - Analytics with charts
 - Profile management
 
+## Screenshots
+
+![Dashboard](screenshots/dashboard.jpeg)
+![Transaction](screenshots/transaction.jpeg)
+![Analytics](screenshots/analytics.jpeg)
+
 ## Setup
 
 1. Clone this repository
