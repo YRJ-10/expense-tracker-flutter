@@ -43,5 +43,13 @@ A mobile expense tracker app built with Flutter and Supabase as the backend.
 flutter build apk --release
 ```
 
+## Security Notice
+
+This project is for private and educational purposes. Some sensitive configurations 
+are stored client-side for development simplicity. Proper server-side handling 
+is recommended before any public deployment.
+
+---
+
 ## Developer
 Developed by YRJ & Claude
