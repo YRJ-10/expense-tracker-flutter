@@ -1,5 +1,7 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:expense_tracker_flutter/utils/formatters.dart';
 
 class GoalsScreen extends StatefulWidget {
   const GoalsScreen({super.key});
@@ -73,7 +75,11 @@ class _GoalsScreenState extends State<GoalsScreen> {
               const SizedBox(height: 16),
               TextField(
                 controller: targetController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  ThousandsSeparatorInputFormatter(),
+                ],
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   labelText: 'Target Uang (Rp)',
@@ -90,13 +96,21 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   onPressed: () async {
                     if (nameController.text.isNotEmpty && targetController.text.isNotEmpty) {
                       final userId = _supabase.auth.currentUser!.id;
-                      await _supabase.from('financial_goals').insert({
-                        'user_id': userId,
-                        'name': nameController.text,
-                        'target_amount': double.tryParse(targetController.text) ?? 0,
-                      });
-                      if (context.mounted) Navigator.pop(context);
-                      _loadGoals();
+                      try {
+                        await _supabase.from('financial_goals').insert({
+                          'user_id': userId,
+                          'name': nameController.text,
+                          'target_amount': double.tryParse(targetController.text.replaceAll('.', '')) ?? 0,
+                        });
+                        if (context.mounted) Navigator.pop(context);
+                        _loadGoals();
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Simpan Gagal: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -136,7 +150,11 @@ class _GoalsScreenState extends State<GoalsScreen> {
               const SizedBox(height: 16),
               TextField(
                 controller: amountController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  ThousandsSeparatorInputFormatter(),
+                ],
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   labelText: 'Jumlah yang ditabung (Rp)',
@@ -152,18 +170,26 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 child: ElevatedButton(
                   onPressed: () async {
                     if (amountController.text.isNotEmpty) {
-                      final addAmount = double.tryParse(amountController.text) ?? 0;
+                      final addAmount = double.tryParse(amountController.text.replaceAll('.', '')) ?? 0;
                       
                       // Get current first
                       final goal = _goals.firstWhere((g) => g['id'] == goalId);
                       final currentAmount = (goal['current_amount'] as num).toDouble();
                       
-                      await _supabase.from('financial_goals').update({
-                        'current_amount': currentAmount + addAmount,
-                      }).eq('id', goalId);
+                      try {
+                        await _supabase.from('financial_goals').update({
+                          'current_amount': currentAmount + addAmount,
+                        }).eq('id', goalId);
 
-                      if (context.mounted) Navigator.pop(context);
-                      _loadGoals();
+                        if (context.mounted) Navigator.pop(context);
+                        _loadGoals();
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Update Gagal: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(

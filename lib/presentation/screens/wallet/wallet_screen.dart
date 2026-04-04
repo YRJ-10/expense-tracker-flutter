@@ -1,5 +1,7 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:expense_tracker_flutter/utils/formatters.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -76,7 +78,11 @@ class _WalletScreenState extends State<WalletScreen> {
               const SizedBox(height: 16),
               TextField(
                 controller: balanceController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  ThousandsSeparatorInputFormatter(),
+                ],
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   labelText: 'Saldo Awal',
@@ -93,14 +99,22 @@ class _WalletScreenState extends State<WalletScreen> {
                   onPressed: () async {
                     if (nameController.text.isNotEmpty) {
                       final userId = _supabase.auth.currentUser!.id;
-                      await _supabase.from('wallets').insert({
-                        'user_id': userId,
-                        'name': nameController.text,
-                        'balance': double.tryParse(balanceController.text) ?? 0,
-                        'icon': '👛',
-                      });
-                      if (context.mounted) Navigator.pop(context);
-                      _loadWallets();
+                      try {
+                        await _supabase.from('wallets').insert({
+                          'user_id': userId,
+                          'name': nameController.text,
+                          'balance': double.tryParse(balanceController.text.replaceAll('.', '')) ?? 0,
+                          'icon': '👛',
+                        });
+                        if (context.mounted) Navigator.pop(context);
+                        _loadWallets();
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Simpan Gagal: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(

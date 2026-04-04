@@ -1,6 +1,8 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:expense_tracker_flutter/utils/formatters.dart';
 
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
@@ -89,7 +91,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: limitController,
-                    keyboardType: TextInputType.number,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      ThousandsSeparatorInputFormatter(),
+                    ],
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       labelText: 'Batas Anggaran (Rp)',
@@ -107,14 +113,22 @@ class _BudgetScreenState extends State<BudgetScreen> {
                         if (selectedCategoryId != null && limitController.text.isNotEmpty) {
                           final userId = _supabase.auth.currentUser!.id;
                           final monthYear = DateFormat('yyyy-MM').format(_currentMonth);
-                          await _supabase.from('budgets').upsert({
-                            'user_id': userId,
-                            'category_id': selectedCategoryId,
-                            'limit_amount': double.tryParse(limitController.text) ?? 0,
-                            'month_year': monthYear,
-                          });
-                          if (context.mounted) Navigator.pop(context);
-                          _loadBudgets();
+                          try {
+                            await _supabase.from('budgets').upsert({
+                              'user_id': userId,
+                              'category_id': selectedCategoryId,
+                              'limit_amount': double.tryParse(limitController.text.replaceAll('.', '')) ?? 0,
+                              'month_year': monthYear,
+                            });
+                            if (context.mounted) Navigator.pop(context);
+                            _loadBudgets();
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Simpan Gagal: $e'), backgroundColor: Colors.red),
+                              );
+                            }
+                          }
                         }
                       },
                       style: ElevatedButton.styleFrom(

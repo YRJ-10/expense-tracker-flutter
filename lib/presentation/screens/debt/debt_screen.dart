@@ -1,6 +1,8 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:expense_tracker_flutter/utils/formatters.dart';
 
 class DebtScreen extends StatefulWidget {
   const DebtScreen({super.key});
@@ -100,7 +102,11 @@ class _DebtScreenState extends State<DebtScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: amountController,
-                    keyboardType: TextInputType.number,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      ThousandsSeparatorInputFormatter(),
+                    ],
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       labelText: 'Jumlah (Rp)',
@@ -117,14 +123,22 @@ class _DebtScreenState extends State<DebtScreen> {
                       onPressed: () async {
                         if (nameController.text.isNotEmpty && amountController.text.isNotEmpty) {
                           final userId = _supabase.auth.currentUser!.id;
-                          await _supabase.from('debts').insert({
-                            'user_id': userId,
-                            'person_name': nameController.text,
-                            'amount': double.tryParse(amountController.text) ?? 0,
-                            'type': type,
-                          });
-                          if (context.mounted) Navigator.pop(context);
-                          _loadDebts();
+                          try {
+                            await _supabase.from('debts').insert({
+                              'user_id': userId,
+                              'person_name': nameController.text,
+                              'amount': double.tryParse(amountController.text.replaceAll('.', '')) ?? 0,
+                              'type': type,
+                            });
+                            if (context.mounted) Navigator.pop(context);
+                            _loadDebts();
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Simpan Gagal: $e'), backgroundColor: Colors.red),
+                              );
+                            }
+                          }
                         }
                       },
                       style: ElevatedButton.styleFrom(
