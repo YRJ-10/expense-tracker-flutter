@@ -14,6 +14,7 @@ class BudgetScreen extends StatefulWidget {
 class _BudgetScreenState extends State<BudgetScreen> {
   final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _budgets = [];
+  List<Map<String, dynamic>> _expenseTransactions = [];
   bool _isLoading = true;
   DateTime _currentMonth = DateTime.now();
 
@@ -34,9 +35,22 @@ class _BudgetScreenState extends State<BudgetScreen> {
           .select('*, categories(*)')
           .eq('user_id', userId)
           .eq('month_year', monthYear);
+          
+      final startDate = '${monthYear}-01';
+      final endOfMonth = DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
+      final endDate = DateFormat('yyyy-MM-dd').format(endOfMonth);
+      
+      final expenses = await _supabase
+          .from('transactions')
+          .select()
+          .eq('user_id', userId)
+          .eq('type', 'expense')
+          .gte('date', startDate)
+          .lte('date', endDate);
       
       setState(() {
         _budgets = List<Map<String, dynamic>>.from(budgets);
+        _expenseTransactions = List<Map<String, dynamic>>.from(expenses);
         _isLoading = false;
       });
     } catch (e) {
@@ -186,12 +200,25 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 final budget = _budgets[index];
                 final category = budget['categories'];
                 final limit = (budget['limit_amount'] as num).toDouble();
+                
+                double usedAmount = 0;
+                for (var t in _expenseTransactions) {
+                  if (t['category_id'] == budget['category_id']) {
+                    usedAmount += (t['amount'] as num).toDouble();
+                  }
+                }
+                
+                double ratio = limit > 0 ? usedAmount / limit : 0;
+                final bool isOverBudget = ratio > 1.0;
+                if (ratio > 1.0) ratio = 1.0;
+
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A1A2E),
                     borderRadius: BorderRadius.circular(16),
+                    border: isOverBudget ? Border.all(color: Colors.redAccent, width: 1.5) : null,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,14 +234,20 @@ class _BudgetScreenState extends State<BudgetScreen> {
                       ),
                       const SizedBox(height: 12),
                       LinearProgressIndicator(
-                        value: 0.5, // Dummy value, should calculate actual usage from transactions
+                        value: ratio,
                         backgroundColor: Colors.white.withOpacity(0.1),
-                        color: const Color(0xFF6C63FF),
+                        color: isOverBudget ? Colors.redAccent : const Color(0xFF6C63FF),
                         minHeight: 8,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       const SizedBox(height: 8),
-                      Text('50% terpakai dari anggaran', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('${_formatCurrency(usedAmount)} terpakai', style: TextStyle(color: isOverBudget ? Colors.redAccent : Colors.white.withOpacity(0.5), fontSize: 12)),
+                          Text('${(ratio * 100).toStringAsFixed(1)}%', style: TextStyle(color: isOverBudget ? Colors.redAccent : Colors.white.withOpacity(0.5), fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
                     ],
                   ),
                 );

@@ -1,4 +1,4 @@
-import 'package:app_links/app_links.dart';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:expense_tracker_flutter/presentation/screens/dashboard/dashboard_screen.dart';
@@ -15,21 +15,9 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
-  late AppLinks _appLinks;
-
   @override
   void initState() {
     super.initState();
-    _initDeepLinks();
-  }
-
-  Future<void> _initDeepLinks() async {
-    _appLinks = AppLinks();
-    _appLinks.uriLinkStream.listen((uri) async {
-      await Supabase.instance.client.auth.getSessionFromUrl(uri);
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/home');
-    });
   }
 
   void _navigateToTab(int index) {

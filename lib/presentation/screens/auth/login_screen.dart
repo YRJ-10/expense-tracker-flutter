@@ -46,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: 'com.yrj.expanse_tracker_flutter://login-callback',
+        redirectTo: 'expansetracker://login-callback',
       );
     } catch (e) {
       if (!mounted) return;

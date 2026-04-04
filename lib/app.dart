@@ -25,9 +25,31 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _setupAuthListener() {
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       final event = data.event;
       if (event == AuthChangeEvent.signedIn) {
+        
+        // Auto-create profile if missing (Safest Global Place)
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          try {
+            final existingProfile = await Supabase.instance.client
+                .from('profiles')
+                .select()
+                .eq('id', user.id)
+                .maybeSingle();
+
+            if (existingProfile == null) {
+              await Supabase.instance.client.from('profiles').insert({
+                'id': user.id,
+                'full_name': user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? 'Pengguna',
+              });
+            }
+          } catch (e) {
+            print("Error creating profile: $e");
+          }
+        }
+
         _navigatorKey.currentState?.pushReplacementNamed('/home');
       }
     });

@@ -41,6 +41,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .single();
 
     final allT = await _supabase.from('transactions').select().eq('user_id', userId);
+    final allGoals = await _supabase.from('financial_goals').select().eq('user_id', userId);
+    final allDebts = await _supabase.from('debts').select().eq('user_id', userId).eq('is_paid', false);
     
     double tBalance = 0;
     
@@ -57,6 +59,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
         tBalance += amt;
       } else {
         tBalance -= amt;
+      }
+    }
+    
+    // Subtract Goal savings (uang dialokasikan)
+    for (var g in allGoals) {
+      tBalance -= (g['current_amount'] as num).toDouble();
+    }
+    
+    // Adjust Debt cash flows
+    for (var d in allDebts) {
+      final amt = (d['amount'] as num).toDouble();
+      if (d['type'] == 'borrowed') {
+        tBalance += amt; // Utang yang diterima (uang kas bertambah)
+      } else if (d['type'] == 'lent') {
+        tBalance -= amt; // Piutang yang diberikan (uang kas berkurang)
       }
     }
 
