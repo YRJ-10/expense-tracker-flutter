@@ -112,12 +112,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return '${monthNames[date.month]} ${date.year}';
   }
 
-  Future<void> _logout() async {
-    await _supabase.auth.signOut();
-    if (!mounted) return;
-    Navigator.pushReplacementNamed(context, '/login');
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -145,12 +139,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: _logout,
-          ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
