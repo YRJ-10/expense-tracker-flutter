@@ -291,7 +291,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _buildFeatureBtn(context, Icons.account_balance_wallet, 'Dompet', const WalletScreen()),
                   _buildFeatureBtn(context, Icons.account_balance, 'Anggaran', const BudgetScreen()),
                   _buildFeatureBtn(context, Icons.flag, 'Target', const GoalsScreen()),
-                  _buildFeatureBtn(context, Icons.handshake, 'Hutang', const DebtScreen()),
+                  _buildFeatureBtn(context, Icons.handshake, 'Utang', const DebtScreen()),
                 ],
               ),
               const SizedBox(height: 32),

@@ -63,13 +63,13 @@ class _DebtScreenState extends State<DebtScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Catat Hutang/Piutang', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text('Catat Utang/Piutang', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
                         child: RadioListTile<String>(
-                          title: const Text('Hutang', style: TextStyle(color: Colors.white, fontSize: 14)),
+                          title: const Text('Utang', style: TextStyle(color: Colors.white, fontSize: 14)),
                           value: 'borrowed',
                           groupValue: type,
                           activeColor: const Color(0xFF6C63FF),
@@ -173,7 +173,7 @@ class _DebtScreenState extends State<DebtScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F1A),
       appBar: AppBar(
-        title: const Text('Hutang & Piutang', style: TextStyle(color: Colors.white)),
+        title: const Text('Utang & Piutang', style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF0F0F1A),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -229,7 +229,7 @@ class _DebtScreenState extends State<DebtScreen> {
                           children: [
                             Text(debt['person_name'], style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, decoration: isPaid ? TextDecoration.lineThrough : null)),
                             const SizedBox(height: 4),
-                            Text(isBorrowed ? 'Saya Hutang' : 'Saya Menghutangi', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                            Text(isBorrowed ? 'Saya Berutang' : 'Saya Mengutangi', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
                           ],
                         ),
                       ),

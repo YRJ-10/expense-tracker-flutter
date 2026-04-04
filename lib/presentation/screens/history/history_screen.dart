@@ -79,16 +79,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         backgroundColor: const Color(0xFF0F0F1A),
         elevation: 0,
         title: const Text('Riwayat Transaksi', style: TextStyle(color: Colors.white)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.download, color: Colors.white),
-            onPressed: () {
-              if (_filteredTransactions.isNotEmpty) {
-                ExportHelper.exportToCSV(_filteredTransactions);
-              }
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
