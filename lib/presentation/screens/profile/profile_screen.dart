@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:expense_tracker_flutter/presentation/screens/recurring/recurring_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -148,6 +149,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 24),
+
+            ListTile(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const RecurringScreen())),
+              leading: const Icon(Icons.autorenew, color: Color(0xFF6C63FF)),
+              title: const Text('Transaksi Rutin', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+              tileColor: const Color(0xFF1A1A2E),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+
             const SizedBox(height: 32),
 
             // Tombol Simpan

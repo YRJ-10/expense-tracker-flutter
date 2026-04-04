@@ -35,10 +35,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   List<Map<String, dynamic>> _categories = [];
   bool _isLoading = false;
 
+  String? _selectedWalletId;
+  List<Map<String, dynamic>> _wallets = [];
+
   @override
   void initState() {
     super.initState();
     _loadCategories();
+    _loadWallets();
   }
 
   @override
@@ -56,6 +60,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     setState(() {
       _categories = List<Map<String, dynamic>>.from(categories);
     });
+  }
+
+  Future<void> _loadWallets() async {
+    try {
+      final wallets = await _supabase.from('wallets').select().eq('user_id', _supabase.auth.currentUser!.id);
+      if (mounted) {
+        setState(() {
+          _wallets = List<Map<String, dynamic>>.from(wallets);
+          if (_wallets.isNotEmpty) {
+            _selectedWalletId = _wallets.first['id'];
+          }
+        });
+      }
+    } catch(e) {}
   }
 
   Future<void> _pickDate() async {
@@ -94,6 +112,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       final amount = double.parse(_amountController.text.replaceAll('.', ''));
       await _supabase.from('transactions').insert({
         'user_id': userId,
+        'wallet_id': _selectedWalletId,
         'amount': amount,
         'type': _type,
         'category_id': _selectedCategoryId,
@@ -212,6 +231,28 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
             ),
             const SizedBox(height: 24),
+
+            if (_wallets.isNotEmpty) ...[
+              const Text('Keluarkan dari Dompet', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                dropdownColor: const Color(0xFF0F0F1A),
+                value: _selectedWalletId,
+                items: _wallets.map((w) {
+                  return DropdownMenuItem<String>(
+                    value: w['id'],
+                    child: Text('${w['icon']} ${w['name']}', style: const TextStyle(color: Colors.white)),
+                  );
+                }).toList(),
+                onChanged: (val) => setState(() => _selectedWalletId = val),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: const Color(0xFF1A1A2E),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
 
             const Text('Kategori', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
+import 'package:expense_tracker_flutter/utils/export_helper.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -13,6 +15,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   List<Map<String, dynamic>> _transactions = [];
   bool _isLoading = true;
   String _filterType = 'all';
+  DateTime _selectedDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
 
   @override
   void initState() {
@@ -23,11 +26,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Future<void> _loadTransactions() async {
     setState(() => _isLoading = true);
     final userId = _supabase.auth.currentUser!.id;
+    final startDateString = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    final endDateString = DateFormat('yyyy-MM-dd').format(DateTime(_selectedDate.year, _selectedDate.month + 1, 0));
 
     var query = _supabase
         .from('transactions')
         .select('*, categories(name, icon, color)')
         .eq('user_id', userId)
+        .gte('date', startDateString)
+        .lte('date', endDateString)
         .order('date', ascending: false);
 
     final transactions = await query;
@@ -52,6 +59,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _loadTransactions();
   }
 
+  void _changeMonth(int increment) {
+    setState(() {
+      _selectedDate = DateTime(_selectedDate.year, _selectedDate.month + increment, 1);
+    });
+    _loadTransactions();
+  }
+
+  String _getMonthName(DateTime date) {
+    const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    return '${monthNames[date.month]} ${date.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -60,9 +79,41 @@ class _HistoryScreenState extends State<HistoryScreen> {
         backgroundColor: const Color(0xFF0F0F1A),
         elevation: 0,
         title: const Text('Riwayat Transaksi', style: TextStyle(color: Colors.white)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download, color: Colors.white),
+            onPressed: () {
+              if (_filteredTransactions.isNotEmpty) {
+                ExportHelper.exportToCSV(_filteredTransactions);
+              }
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
+          // Month Navigation
+          Container(
+            color: const Color(0xFF1A1A2E),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left, color: Colors.white),
+                  onPressed: () => _changeMonth(-1),
+                ),
+                Text(
+                  _getMonthName(_selectedDate),
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right, color: Colors.white),
+                  onPressed: () => _changeMonth(1),
+                ),
+              ],
+            ),
+          ),
           // Filter
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
