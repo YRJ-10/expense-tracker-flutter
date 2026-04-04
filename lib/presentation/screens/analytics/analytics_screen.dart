@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:expense_tracker_flutter/utils/export_helper.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -195,6 +196,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         backgroundColor: const Color(0xFF0F0F1A),
         elevation: 0,
         title: const Text('Analitik', style: TextStyle(color: Colors.white)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+            tooltip: 'Unduh Laporan PDF',
+            onPressed: () async {
+              if (_transactions.isEmpty) return;
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Menyiapkan Laporan PDF...')));
+              await ExportHelper.exportToPDF(_transactions);
+            },
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))

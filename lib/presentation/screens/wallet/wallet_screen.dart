@@ -25,14 +25,39 @@ class _WalletScreenState extends State<WalletScreen> {
     setState(() => _isLoading = true);
     final userId = _supabase.auth.currentUser!.id;
     try {
-      final wallets = await _supabase
+      final walletsData = await _supabase
           .from('wallets')
           .select()
           .eq('user_id', userId)
           .order('created_at', ascending: true);
+
+      final transactionsData = await _supabase
+          .from('transactions')
+          .select('wallet_id, amount, type')
+          .eq('user_id', userId)
+          .not('wallet_id', 'is', null);
+
+      List<Map<String, dynamic>> processedWallets = [];
+
+      for (var w in walletsData) {
+        double currentBalance = (w['balance'] as num).toDouble();
+        final String wId = w['id'];
+        
+        for (var t in transactionsData) {
+          if (t['wallet_id'] == wId) {
+            final amt = (t['amount'] as num).toDouble();
+            if (t['type'] == 'income') currentBalance += amt;
+            else currentBalance -= amt;
+          }
+        }
+        
+        final newWallet = Map<String, dynamic>.from(w);
+        newWallet['true_balance'] = currentBalance;
+        processedWallets.add(newWallet);
+      }
       
       setState(() {
-        _wallets = List<Map<String, dynamic>>.from(wallets);
+        _wallets = processedWallets;
         _isLoading = false;
       });
     } catch (e) {
@@ -193,7 +218,7 @@ class _WalletScreenState extends State<WalletScreen> {
                           children: [
                             Text(wallet['name'], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                             const SizedBox(height: 4),
-                            Text(_formatCurrency((wallet['balance'] as num).toDouble()), style: const TextStyle(color: Colors.greenAccent, fontSize: 14)),
+                            Text(_formatCurrency((wallet['true_balance'] as num).toDouble()), style: const TextStyle(color: Colors.greenAccent, fontSize: 14)),
                           ],
                         ),
                       ),

@@ -43,6 +43,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final allT = await _supabase.from('transactions').select().eq('user_id', userId);
     
     double tBalance = 0;
+    
+    // Add all wallet starting balances
+    final wallets = await _supabase.from('wallets').select('balance').eq('user_id', userId);
+    for (var w in wallets) {
+      tBalance += (w['balance'] as num).toDouble();
+    }
+
+    // Add and subtract all transactions
     for (var t in allT) {
       final amt = (t['amount'] as num).toDouble();
       if (t['type'] == 'income') {
