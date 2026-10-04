@@ -40,10 +40,21 @@ class GmailSyncService {
   // 1. Buka halaman otorisasi OAuth Gmail
   static Future<bool> connectGmail(String userId) async {
     final uri = Uri.parse('$baseUrl/auth/login?userId=$userId');
-    if (await canLaunchUrl(uri)) {
-      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    try {
+      final success = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (success) return true;
+    } catch (_) {}
+
+    try {
+      final success = await launchUrl(uri, mode: LaunchMode.platformDefault);
+      if (success) return true;
+    } catch (_) {}
+
+    try {
+      return await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+    } catch (_) {
+      return false;
     }
-    return false;
   }
 
   // 2. Ambil status integrasi saat ini

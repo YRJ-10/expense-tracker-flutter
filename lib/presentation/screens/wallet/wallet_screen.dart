@@ -59,19 +59,78 @@ class _WalletScreenState extends State<WalletScreen> {
 
   Future<void> _handleConnectGmail() async {
     final userId = FirestoreService.currentUserId;
-    if (userId == null) return;
+    if (userId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Silakan login terlebih dahulu.'), backgroundColor: Colors.red),
+        );
+      }
+      return;
+    }
 
     final launched = await GmailSyncService.connectGmail(userId);
-    if (launched && mounted) {
+    if (!mounted) return;
+
+    if (launched) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Halaman otorisasi Google dibuka. Selesaikan lalu kembali ke aplikasi.'),
+          content: Text('Halaman otorisasi Google dibuka. Selesaikan di browser lalu kembali ke aplikasi.'),
           backgroundColor: Color(0xFF6C63FF),
         ),
       );
-      // Tunggu user menyelesaikan login lalu refresh status
-      await Future.delayed(const Duration(seconds: 4));
+      // Cek status berkala saat user menyelesaikan OAuth
+      for (int i = 0; i < 6; i++) {
+        await Future.delayed(const Duration(seconds: 3));
+        if (!mounted) break;
+        final status = await GmailSyncService.getStatus(userId);
+        if (status.isConnected) {
+          setState(() => _syncStatus = status);
+          break;
+        }
+      }
       _loadData();
+    } else {
+      final authUrl = '${GmailSyncService.baseUrl}/auth/login?userId=$userId';
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A2E),
+          title: const Text('Otorisasi Gmail', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Browser tidak terbuka otomatis. Silakan salin tautan berikut dan buka di Google Chrome / Browser HP Anda:',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              SelectableText(
+                authUrl,
+                style: const TextStyle(color: Color(0xFF6C63FF), fontSize: 13),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: authUrl));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Tautan otorisasi berhasil disalin!')),
+                );
+              },
+              child: const Text('Salin Tautan', style: TextStyle(color: Color(0xFF6C63FF))),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _loadData();
+              },
+              child: const Text('Tutup', style: TextStyle(color: Colors.white54)),
+            ),
+          ],
+        ),
+      );
     }
   }
 
