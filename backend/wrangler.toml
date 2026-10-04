@@ -1,0 +1,8 @@
+name = "expense-tracker-gmail"
+main = "src/index.ts"
+compatibility_date = "2024-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Non-sensitive variables can be set here or in dashboard
+ENVIRONMENT = "production"

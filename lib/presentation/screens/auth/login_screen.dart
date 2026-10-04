@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,18 +24,37 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email dan password wajib diisi'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
       );
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/home');
-    } on AuthException catch (e) {
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      String msg = 'Gagal login: ${e.message}';
+      if (e.code == 'user-not-found') msg = 'Akun dengan email ini tidak ditemukan.';
+      if (e.code == 'wrong-password') msg = 'Password salah.';
+      if (e.code == 'invalid-credential') msg = 'Email atau password salah.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -44,14 +64,22 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _loginWithGoogle() async {
     setState(() => _isGoogleLoading = true);
     try {
-      await Supabase.instance.client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: 'expansetracker://login-callback',
-      );
+      final googleSignIn = GoogleSignIn();
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser != null) {
+        final googleAuth = await googleUser.authentication;
+        final credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+        await FirebaseAuth.instance.signInWithCredential(credential);
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/home');
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('Error Google Sign-In: $e'), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
@@ -147,13 +175,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : const Text(
-                    'Login',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                          'Login',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -185,10 +213,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   icon: _isGoogleLoading
                       ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                  )
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
                       : const Text('G', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                   label: const Text(
                     'Login dengan Google',

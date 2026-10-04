@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 import 'package:expense_tracker_flutter/utils/formatters.dart';
 
 class GoalsScreen extends StatefulWidget {
@@ -11,7 +11,6 @@ class GoalsScreen extends StatefulWidget {
 }
 
 class _GoalsScreenState extends State<GoalsScreen> {
-  final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _goals = [];
   bool _isLoading = true;
 
@@ -23,19 +22,20 @@ class _GoalsScreenState extends State<GoalsScreen> {
 
   Future<void> _loadGoals() async {
     setState(() => _isLoading = true);
-    final userId = _supabase.auth.currentUser!.id;
+    final userId = FirestoreService.currentUserId;
+    if (userId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
     try {
-      final goals = await _supabase
-          .from('financial_goals')
-          .select()
-          .eq('user_id', userId)
-          .order('created_at', ascending: false);
-      
-      setState(() {
-        _goals = List<Map<String, dynamic>>.from(goals);
-        _isLoading = false;
-      });
-    } catch (e) {
+      final goals = await FirestoreService.getGoals(userId);
+      if (mounted) {
+        setState(() {
+          _goals = goals;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -48,6 +48,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
       context: context,
       backgroundColor: const Color(0xFF1A1A2E),
       isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Padding(
           padding: EdgeInsets.only(
@@ -95,22 +96,16 @@ class _GoalsScreenState extends State<GoalsScreen> {
                 child: ElevatedButton(
                   onPressed: () async {
                     if (nameController.text.isNotEmpty && targetController.text.isNotEmpty) {
-                      final userId = _supabase.auth.currentUser!.id;
-                      try {
-                        await _supabase.from('financial_goals').insert({
-                          'user_id': userId,
-                          'name': nameController.text,
-                          'target_amount': double.tryParse(targetController.text.replaceAll('.', '')) ?? 0,
-                        });
-                        if (context.mounted) Navigator.pop(context);
-                        _loadGoals();
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Simpan Gagal: $e'), backgroundColor: Colors.red),
-                          );
-                        }
-                      }
+                      final userId = FirestoreService.currentUserId;
+                      if (userId == null) return;
+                      await FirestoreService.addGoal({
+                        'user_id': userId,
+                        'name': nameController.text.trim(),
+                        'target_amount': double.tryParse(targetController.text.replaceAll('.', '')) ?? 0,
+                        'current_amount': 0.0,
+                      });
+                      if (context.mounted) Navigator.pop(context);
+                      _loadGoals();
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -118,7 +113,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('Mulai Menabung', style: TextStyle(color: Colors.white)),
+                  child: const Text('Mulai Menabung', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -135,6 +130,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A2E),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Padding(
           padding: EdgeInsets.only(
@@ -171,25 +167,15 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   onPressed: () async {
                     if (amountController.text.isNotEmpty) {
                       final addAmount = double.tryParse(amountController.text.replaceAll('.', '')) ?? 0;
-                      
-                      // Get current first
                       final goal = _goals.firstWhere((g) => g['id'] == goalId);
-                      final currentAmount = (goal['current_amount'] as num).toDouble();
-                      
-                      try {
-                        await _supabase.from('financial_goals').update({
-                          'current_amount': currentAmount + addAmount,
-                        }).eq('id', goalId);
+                      final currentAmount = (goal['current_amount'] as num?)?.toDouble() ?? 0.0;
 
-                        if (context.mounted) Navigator.pop(context);
-                        _loadGoals();
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Update Gagal: $e'), backgroundColor: Colors.red),
-                          );
-                        }
-                      }
+                      await FirestoreService.updateGoal(goalId, {
+                        'current_amount': currentAmount + addAmount,
+                      });
+
+                      if (context.mounted) Navigator.pop(context);
+                      _loadGoals();
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -197,7 +183,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('Tambah Saldo', style: TextStyle(color: Colors.white)),
+                  child: const Text('Tambah Saldo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -243,42 +229,55 @@ class _GoalsScreenState extends State<GoalsScreen> {
                   );
                 }
                 final goal = _goals[index];
-                final target = (goal['target_amount'] as num).toDouble();
-                final current = (goal['current_amount'] as num).toDouble();
+                final target = (goal['target_amount'] as num?)?.toDouble() ?? 1.0;
+                final current = (goal['current_amount'] as num?)?.toDouble() ?? 0.0;
                 final percentage = (current / target).clamp(0.0, 1.0);
 
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A2E),
-                    borderRadius: BorderRadius.circular(16),
+                return Dismissible(
+                  key: Key(goal['id'] ?? '$index'),
+                  direction: DismissDirection.endToStart,
+                  onDismissed: (_) {
+                    if (goal['id'] != null) FirestoreService.deleteGoal(goal['id']);
+                  },
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(16)),
+                    child: const Icon(Icons.delete, color: Colors.white),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(goal['name'], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle, color: Colors.greenAccent),
-                            onPressed: () => _showAddMoneyModal(goal['id']),
-                          ),
-                        ],
-                      ),
-                      Text('${_formatCurrency(current)} / ${_formatCurrency(target)}', style: const TextStyle(color: Colors.white70, fontSize: 14)),
-                      const SizedBox(height: 12),
-                      LinearProgressIndicator(
-                        value: percentage,
-                        backgroundColor: Colors.white.withOpacity(0.1),
-                        color: percentage >= 1.0 ? Colors.greenAccent : const Color(0xFF6C63FF),
-                        minHeight: 10,
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      const SizedBox(height: 8),
-                      Text('${(percentage * 100).toStringAsFixed(1)}% Terkumpul', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-                    ],
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A2E),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(goal['name'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                            IconButton(
+                              icon: const Icon(Icons.add_circle, color: Colors.greenAccent),
+                              onPressed: () => _showAddMoneyModal(goal['id']),
+                            ),
+                          ],
+                        ),
+                        Text('${_formatCurrency(current)} / ${_formatCurrency(target)}', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                        const SizedBox(height: 12),
+                        LinearProgressIndicator(
+                          value: percentage,
+                          backgroundColor: Colors.white.withOpacity(0.1),
+                          color: percentage >= 1.0 ? Colors.greenAccent : const Color(0xFF6C63FF),
+                          minHeight: 10,
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('${(percentage * 100).toStringAsFixed(1)}% Terkumpul', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                      ],
+                    ),
                   ),
                 );
               },

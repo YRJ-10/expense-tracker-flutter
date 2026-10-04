@@ -10,8 +10,12 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Backend
-  supabase_flutter: ^2.5.0
+  # Backend & Cloud
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  http: ^1.2.2
+  url_launcher: ^6.3.0
 
   # State Management
   flutter_riverpod: ^2.5.1

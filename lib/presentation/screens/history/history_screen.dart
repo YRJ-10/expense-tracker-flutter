@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 import 'package:expense_tracker_flutter/utils/export_helper.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -11,7 +11,6 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _transactions = [];
   bool _isLoading = true;
   String _filterType = 'all';
@@ -25,24 +24,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _loadTransactions() async {
     setState(() => _isLoading = true);
-    final userId = _supabase.auth.currentUser!.id;
-    final startDateString = DateFormat('yyyy-MM-dd').format(_selectedDate);
-    final endDateString = DateFormat('yyyy-MM-dd').format(DateTime(_selectedDate.year, _selectedDate.month + 1, 0));
+    final userId = FirestoreService.currentUserId;
+    if (userId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
 
-    var query = _supabase
-        .from('transactions')
-        .select('*, categories(name, icon, color)')
-        .eq('user_id', userId)
-        .gte('date', startDateString)
-        .lte('date', endDateString)
-        .order('date', ascending: false);
+    try {
+      final all = await FirestoreService.getTransactions(userId);
+      final startOfMonth = DateTime(_selectedDate.year, _selectedDate.month, 1);
+      final endOfMonth = DateTime(_selectedDate.year, _selectedDate.month + 1, 0, 23, 59, 59);
 
-    final transactions = await query;
+      final filtered = all.where((t) {
+        final rawDate = t['transaction_date'] ?? t['date'];
+        if (rawDate == null) return false;
+        final date = DateTime.tryParse(rawDate.toString());
+        if (date == null) return false;
+        return date.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
+            date.isBefore(endOfMonth.add(const Duration(seconds: 1)));
+      }).toList();
 
-    setState(() {
-      _transactions = List<Map<String, dynamic>>.from(transactions);
-      _isLoading = false;
-    });
+      if (mounted) {
+        setState(() {
+          _transactions = filtered;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   List<Map<String, dynamic>> get _filteredTransactions {
@@ -55,7 +65,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _deleteTransaction(String id) async {
-    await _supabase.from('transactions').delete().eq('id', id);
+    await FirestoreService.deleteTransaction(id);
     _loadTransactions();
   }
 
@@ -79,6 +89,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
         backgroundColor: const Color(0xFF0F0F1A),
         elevation: 0,
         title: const Text('Riwayat Transaksi', style: TextStyle(color: Colors.white)),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.download, color: Colors.white),
+            color: const Color(0xFF1A1A2E),
+            onSelected: (val) {
+              if (val == 'csv') {
+                ExportHelper.exportToCSV(_transactions);
+              } else if (val == 'pdf') {
+                ExportHelper.exportToPDF(_transactions);
+              }
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(value: 'csv', child: Text('Ekspor ke CSV', style: TextStyle(color: Colors.white))),
+              const PopupMenuItem(value: 'pdf', child: Text('Ekspor ke PDF', style: TextStyle(color: Colors.white))),
+            ],
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -106,7 +133,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
           // Filter
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             child: Row(
               children: [
                 _filterChip('Semua', 'all'),
@@ -123,92 +150,146 @@ class _HistoryScreenState extends State<HistoryScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
                 : _filteredTransactions.isEmpty
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.receipt_long, size: 60, color: Colors.white.withOpacity(0.2)),
-                  const SizedBox(height: 16),
-                  Text('Belum ada transaksi', style: TextStyle(color: Colors.white.withOpacity(0.4))),
-                ],
-              ),
-            )
-                : RefreshIndicator(
-              onRefresh: _loadTransactions,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(24),
-                itemCount: _filteredTransactions.length,
-                itemBuilder: (context, index) {
-                  final t = _filteredTransactions[index];
-                  final isIncome = t['type'] == 'income';
-                  final category = t['categories'];
-                  return Dismissible(
-                    key: Key(t['id']),
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 20),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.delete, color: Colors.white),
-                    ),
-                    onDismissed: (_) => _deleteTransaction(t['id']),
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A1A2E),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0F0F1A),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              category != null ? category['icon'] : '📦',
-                              style: const TextStyle(fontSize: 20),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  category != null ? category['name'] : 'Lainnya',
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.receipt_long, size: 60, color: Colors.white.withOpacity(0.2)),
+                            const SizedBox(height: 16),
+                            Text('Belum ada transaksi di bulan ini', style: TextStyle(color: Colors.white.withOpacity(0.4))),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _loadTransactions,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          itemCount: _filteredTransactions.length,
+                          itemBuilder: (context, index) {
+                            final t = _filteredTransactions[index];
+                            final isIncome = t['type'] == 'income';
+                            final double amount = (t['amount'] as num?)?.toDouble() ?? 0.0;
+                            final String categoryName = t['category'] ?? 'Lainnya';
+                            final bool isAutoSynced = t['is_auto_synced'] == true;
+                            final bool isRecon = t['is_reconciliation'] == true;
+                            final String? bank = t['bank_name'];
+                            final String desc = t['description'] ?? t['note'] ?? categoryName;
+                            final String rawDate = t['transaction_date'] ?? t['date'] ?? '';
+                            final String displayDate = rawDate.isNotEmpty
+                                ? DateFormat('dd MMM yyyy, HH:mm').format(DateTime.tryParse(rawDate) ?? DateTime.now())
+                                : '';
+
+                            return Dismissible(
+                              key: Key(t['id'] ?? '$index'),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 20),
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent,
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                Text(
-                                  t['note'] ?? '',
-                                  style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+                                child: const Icon(Icons.delete, color: Colors.white),
+                              ),
+                              onDismissed: (_) => _deleteTransaction(t['id']),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1A1A2E),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isAutoSynced
+                                        ? const Color(0xFF6C63FF).withOpacity(0.3)
+                                        : Colors.white.withOpacity(0.05),
+                                  ),
                                 ),
-                                Text(
-                                  '${t['date']}',
-                                  style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: (isIncome ? Colors.green : Colors.red).withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        isIncome ? Icons.arrow_downward : Icons.arrow_upward,
+                                        color: isIncome ? Colors.greenAccent : Colors.redAccent,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            desc,
+                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Row(
+                                            children: [
+                                              Text(
+                                                categoryName,
+                                                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+                                              ),
+                                              if (isAutoSynced) ...[
+                                                const SizedBox(width: 6),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFF6C63FF).withOpacity(0.25),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: Text(
+                                                    bank ?? 'Auto Sync',
+                                                    style: const TextStyle(color: Color(0xFF9C95FF), fontSize: 10, fontWeight: FontWeight.bold),
+                                                  ),
+                                                ),
+                                              ],
+                                              if (isRecon) ...[
+                                                const SizedBox(width: 6),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.blue.withOpacity(0.25),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: const Text(
+                                                    'Rekonsiliasi',
+                                                    style: TextStyle(color: Colors.blueAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                          if (displayDate.isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 2),
+                                              child: Text(
+                                                displayDate,
+                                                style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      '${isIncome ? '+' : '-'}${_formatCurrency(amount)}',
+                                      style: TextStyle(
+                                        color: isIncome ? Colors.greenAccent : Colors.redAccent,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            '${isIncome ? '+' : '-'} ${_formatCurrency(t['amount'].toDouble())}',
-                            style: TextStyle(
-                              color: isIncome ? Colors.greenAccent : Colors.redAccent,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
-            ),
           ),
         ],
       ),

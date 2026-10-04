@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 import 'package:expense_tracker_flutter/presentation/screens/splash/splash_screen.dart';
 import 'package:expense_tracker_flutter/presentation/screens/onboarding/onboarding_screen.dart';
 import 'package:expense_tracker_flutter/presentation/screens/auth/login_screen.dart';
@@ -25,32 +26,21 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _setupAuthListener() {
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
-      final event = data.event;
-      if (event == AuthChangeEvent.signedIn) {
-        
-        // Auto-create profile if missing (Safest Global Place)
-        final user = Supabase.instance.client.auth.currentUser;
-        if (user != null) {
-          try {
-            final existingProfile = await Supabase.instance.client
-                .from('profiles')
-                .select()
-                .eq('id', user.id)
-                .maybeSingle();
-
-            if (existingProfile == null) {
-              await Supabase.instance.client.from('profiles').insert({
-                'id': user.id,
-                'full_name': user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? 'Pengguna',
-              });
-            }
-          } catch (e) {
-            print("Error creating profile: $e");
+    FirebaseAuth.instance.authStateChanges().listen((user) async {
+      if (user != null) {
+        try {
+          final existingProfile = await FirestoreService.getProfile(user.uid);
+          if (existingProfile == null) {
+            await FirestoreService.saveProfile(user.uid, {
+              'id': user.uid,
+              'email': user.email,
+              'full_name': user.displayName ?? 'Pengguna',
+              'created_at': DateTime.now().toIso8601String(),
+            });
           }
+        } catch (e) {
+          debugPrint("Error creating profile: $e");
         }
-
-        _navigatorKey.currentState?.pushReplacementNamed('/home');
       }
     });
   }
@@ -64,11 +54,10 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
-        colorScheme: ColorScheme.dark(
-          primary: const Color(0xFF6C63FF),
-          secondary: const Color(0xFFFF6584),
-          background: const Color(0xFF0F0F1A),
-          surface: const Color(0xFF1A1A2E),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFF6C63FF),
+          secondary: Color(0xFFFF6584),
+          surface: Color(0xFF1A1A2E),
         ),
         scaffoldBackgroundColor: const Color(0xFF0F0F1A),
         textTheme: GoogleFonts.interTextTheme(

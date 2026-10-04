@@ -1,6 +1,5 @@
 
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:expense_tracker_flutter/presentation/screens/dashboard/dashboard_screen.dart';
 import 'package:expense_tracker_flutter/presentation/screens/history/history_screen.dart';
 import 'package:expense_tracker_flutter/presentation/screens/analytics/analytics_screen.dart';

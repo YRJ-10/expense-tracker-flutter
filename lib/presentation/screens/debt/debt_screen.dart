@@ -1,7 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:intl/intl.dart';
+import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 import 'package:expense_tracker_flutter/utils/formatters.dart';
 
 class DebtScreen extends StatefulWidget {
@@ -12,7 +11,6 @@ class DebtScreen extends StatefulWidget {
 }
 
 class _DebtScreenState extends State<DebtScreen> {
-  final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _debts = [];
   bool _isLoading = true;
 
@@ -24,19 +22,20 @@ class _DebtScreenState extends State<DebtScreen> {
 
   Future<void> _loadDebts() async {
     setState(() => _isLoading = true);
-    final userId = _supabase.auth.currentUser!.id;
+    final userId = FirestoreService.currentUserId;
+    if (userId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
     try {
-      final debts = await _supabase
-          .from('debts')
-          .select()
-          .eq('user_id', userId)
-          .order('created_at', ascending: false);
-      
-      setState(() {
-        _debts = List<Map<String, dynamic>>.from(debts);
-        _isLoading = false;
-      });
-    } catch (e) {
+      final debts = await FirestoreService.getDebts(userId);
+      if (mounted) {
+        setState(() {
+          _debts = debts;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -50,6 +49,7 @@ class _DebtScreenState extends State<DebtScreen> {
       context: context,
       backgroundColor: const Color(0xFF1A1A2E),
       isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateModal) {
@@ -92,7 +92,7 @@ class _DebtScreenState extends State<DebtScreen> {
                     controller: nameController,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: 'Nama Orang',
+                      labelText: 'Nama Orang / Pihak',
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                       filled: true,
                       fillColor: const Color(0xFF0F0F1A),
@@ -122,23 +122,17 @@ class _DebtScreenState extends State<DebtScreen> {
                     child: ElevatedButton(
                       onPressed: () async {
                         if (nameController.text.isNotEmpty && amountController.text.isNotEmpty) {
-                          final userId = _supabase.auth.currentUser!.id;
-                          try {
-                            await _supabase.from('debts').insert({
-                              'user_id': userId,
-                              'person_name': nameController.text,
-                              'amount': double.tryParse(amountController.text.replaceAll('.', '')) ?? 0,
-                              'type': type,
-                            });
-                            if (context.mounted) Navigator.pop(context);
-                            _loadDebts();
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Simpan Gagal: $e'), backgroundColor: Colors.red),
-                              );
-                            }
-                          }
+                          final userId = FirestoreService.currentUserId;
+                          if (userId == null) return;
+                          await FirestoreService.addDebt({
+                            'user_id': userId,
+                            'person_name': nameController.text.trim(),
+                            'amount': double.tryParse(amountController.text.replaceAll('.', '')) ?? 0,
+                            'type': type,
+                            'is_paid': false,
+                          });
+                          if (context.mounted) Navigator.pop(context);
+                          _loadDebts();
                         }
                       },
                       style: ElevatedButton.styleFrom(
@@ -146,21 +140,21 @@ class _DebtScreenState extends State<DebtScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('Simpan Data', style: TextStyle(color: Colors.white)),
+                      child: const Text('Simpan Data', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ),
                   const SizedBox(height: 24),
                 ],
               ),
             );
-          }
+          },
         );
       },
     );
   }
 
   Future<void> _markAsPaid(String id) async {
-    await _supabase.from('debts').update({'is_paid': true}).eq('id', id);
+    await FirestoreService.updateDebt(id, {'is_paid': true});
     _loadDebts();
   }
 
@@ -189,7 +183,7 @@ class _DebtScreenState extends State<DebtScreen> {
                     child: ElevatedButton.icon(
                       onPressed: _showAddDebtModal,
                       icon: const Icon(Icons.add, color: Colors.white),
-                      label: const Text('Catat Baru', style: TextStyle(color: Colors.white)),
+                      label: const Text('Catat Utang/Piutang Baru', style: TextStyle(color: Colors.white)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1A1A2E),
                         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -199,57 +193,72 @@ class _DebtScreenState extends State<DebtScreen> {
                   );
                 }
                 final debt = _debts[index];
-                final isPaid = debt['is_paid'] == true;
-                final isBorrowed = debt['type'] == 'borrowed';
-                
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A2E),
-                    borderRadius: BorderRadius.circular(16),
+                final bool isPaid = debt['is_paid'] == true;
+                final bool isBorrowed = debt['type'] == 'borrowed';
+                final amount = (debt['amount'] as num?)?.toDouble() ?? 0.0;
+
+                return Dismissible(
+                  key: Key(debt['id'] ?? '$index'),
+                  direction: DismissDirection.endToStart,
+                  onDismissed: (_) {
+                    if (debt['id'] != null) FirestoreService.deleteDebt(debt['id']);
+                  },
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(16)),
+                    child: const Icon(Icons.delete, color: Colors.white),
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isBorrowed ? Colors.redAccent.withOpacity(0.2) : Colors.greenAccent.withOpacity(0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          isBorrowed ? Icons.arrow_downward : Icons.arrow_upward,
-                          color: isBorrowed ? Colors.redAccent : Colors.greenAccent,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A2E),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(debt['person_name'], style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, decoration: isPaid ? TextDecoration.lineThrough : null)),
-                            const SizedBox(height: 4),
-                            Text(isBorrowed ? 'Saya Berutang' : 'Saya Mengutangi', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: (isBorrowed ? Colors.redAccent : Colors.blueAccent).withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    isBorrowed ? 'Utang' : 'Piutang',
+                                    style: TextStyle(
+                                      color: isBorrowed ? Colors.redAccent : Colors.blueAccent,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(debt['person_name'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(_formatCurrency(amount), style: const TextStyle(color: Colors.white70, fontSize: 14)),
                           ],
                         ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(_formatCurrency((debt['amount'] as num).toDouble()), style: TextStyle(color: isPaid ? Colors.grey : Colors.white, fontWeight: FontWeight.bold)),
-                          if (!isPaid)
-                            TextButton(
-                              onPressed: () => _markAsPaid(debt['id']),
-                              child: const Text('Tandai Lunas', style: TextStyle(color: Color(0xFF6C63FF), fontSize: 12)),
-                            )
-                          else
-                            const Padding(
-                              padding: EdgeInsets.only(top: 8.0),
-                              child: Text('LUNAS', style: TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold)),
-                            ),
-                        ],
-                      )
-                    ],
+                        isPaid
+                            ? const Text('Lunas', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold))
+                            : OutlinedButton(
+                                onPressed: () => _markAsPaid(debt['id']),
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Color(0xFF6C63FF)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                child: const Text('Tandai Lunas', style: TextStyle(color: Color(0xFF6C63FF))),
+                              ),
+                      ],
+                    ),
                   ),
                 );
               },

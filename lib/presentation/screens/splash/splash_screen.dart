@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,11 +20,11 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
-    final session = Supabase.instance.client.auth.currentSession;
+    final user = FirebaseAuth.instance.currentUser;
     final prefs = await SharedPreferences.getInstance();
     final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
 
-    if (session != null) {
+    if (user != null) {
       // Sudah login → langsung ke home
       Navigator.pushReplacementNamed(context, '/home');
     } else if (hasSeenOnboarding) {

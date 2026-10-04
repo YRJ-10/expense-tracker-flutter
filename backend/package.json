@@ -1,0 +1,14 @@
+{
+  "name": "expense-tracker-gmail-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker backend for Gmail Bank Notification Sync to Firestore",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240405.0",
+    "typescript": "^5.4.5"
+  }
+}

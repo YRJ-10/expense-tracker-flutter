@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -24,19 +25,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Semua field wajib diisi'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      final response = await Supabase.instance.client.auth.signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-        data: {'full_name': _nameController.text.trim()},
+      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
       );
 
-      if (response.user != null) {
-        await Supabase.instance.client.from('profiles').insert({
-          'id': response.user!.id,
-          'full_name': _nameController.text.trim(),
+      if (cred.user != null) {
+        await cred.user!.updateDisplayName(name);
+        await FirestoreService.saveProfile(cred.user!.uid, {
+          'id': cred.user!.uid,
+          'email': email,
+          'full_name': name,
+          'created_at': DateTime.now().toIso8601String(),
         });
       }
 
@@ -48,10 +62,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
       Navigator.pushReplacementNamed(context, '/login');
-    } on AuthException catch (e) {
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      String msg = 'Gagal registrasi: ${e.message}';
+      if (e.code == 'email-already-in-use') msg = 'Email sudah digunakan.';
+      if (e.code == 'weak-password') msg = 'Password terlalu lemah (minimal 6 karakter).';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);

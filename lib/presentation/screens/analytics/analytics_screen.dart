@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 import 'package:expense_tracker_flutter/utils/export_helper.dart';
 
 class AnalyticsScreen extends StatefulWidget {
@@ -11,7 +11,6 @@ class AnalyticsScreen extends StatefulWidget {
 }
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
-  final _supabase = Supabase.instance.client;
   bool _isLoading = true;
   List<Map<String, dynamic>> _transactions = [];
   int _touchedExpenseIndex = -1;
@@ -24,24 +23,33 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   Future<void> _loadData() async {
-    final userId = _supabase.auth.currentUser!.id;
-    final transactions = await _supabase
-        .from('transactions')
-        .select('*, categories(name, icon, color)')
-        .eq('user_id', userId)
-        .order('date', ascending: false);
+    final userId = FirestoreService.currentUserId;
+    if (userId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
 
-    setState(() {
-      _transactions = List<Map<String, dynamic>>.from(transactions);
-      _isLoading = false;
-    });
+    try {
+      final transactions = await FirestoreService.getTransactions(userId);
+      if (mounted) {
+        setState(() {
+          _transactions = transactions;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   // Bulan ini
   List<Map<String, dynamic>> get _thisMonth {
     final now = DateTime.now();
     return _transactions.where((t) {
-      final date = DateTime.parse(t['date']);
+      final raw = t['transaction_date'] ?? t['date'];
+      if (raw == null) return false;
+      final date = DateTime.tryParse(raw.toString());
+      if (date == null) return false;
       return date.year == now.year && date.month == now.month;
     }).toList();
   }
@@ -51,21 +59,25 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final now = DateTime.now();
     final last = DateTime(now.year, now.month - 1);
     return _transactions.where((t) {
-      final date = DateTime.parse(t['date']);
+      final raw = t['transaction_date'] ?? t['date'];
+      if (raw == null) return false;
+      final date = DateTime.tryParse(raw.toString());
+      if (date == null) return false;
       return date.year == last.year && date.month == last.month;
     }).toList();
   }
 
   double _sumByType(List<Map<String, dynamic>> list, String type) {
-    return list.where((t) => t['type'] == type).fold(0.0, (sum, t) => sum + t['amount'].toDouble());
+    return list.where((t) => t['type'] == type).fold(0.0, (sum, t) => sum + ((t['amount'] as num?)?.toDouble() ?? 0.0));
   }
 
   Map<String, double> _groupByCategory(List<Map<String, dynamic>> list, String type) {
     final Map<String, double> data = {};
     for (var t in list) {
       if (t['type'] == type) {
-        final name = t['categories'] != null ? t['categories']['name'] : 'Lainnya';
-        data[name] = (data[name] ?? 0) + t['amount'].toDouble();
+        final name = t['category'] ?? (t['categories'] != null ? t['categories']['name'] : 'Lainnya');
+        final amt = (t['amount'] as num?)?.toDouble() ?? 0.0;
+        data[name] = (data[name] ?? 0) + amt;
       }
     }
     return data;
@@ -75,8 +87,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final Map<String, double> data = {};
     for (var t in _transactions) {
       if (t['type'] == 'expense') {
-        final month = t['date'].toString().substring(0, 7);
-        data[month] = (data[month] ?? 0) + t['amount'].toDouble();
+        final raw = (t['transaction_date'] ?? t['date'] ?? '').toString();
+        final month = raw.length >= 7 ? raw.substring(0, 7) : 'Lainnya';
+        final amt = (t['amount'] as num?)?.toDouble() ?? 0.0;
+        data[month] = (data[month] ?? 0) + amt;
       }
     }
     return Map.fromEntries(data.entries.toList()..sort((a, b) => a.key.compareTo(b.key)));

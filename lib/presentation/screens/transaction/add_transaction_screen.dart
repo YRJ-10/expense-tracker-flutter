@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 
 class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
   @override
@@ -26,22 +26,40 @@ class AddTransactionScreen extends StatefulWidget {
 }
 
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
-  final _supabase = Supabase.instance.client;
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
   String _type = 'expense';
   String? _selectedCategoryId;
   DateTime _selectedDate = DateTime.now();
-  List<Map<String, dynamic>> _categories = [];
   bool _isLoading = false;
 
   String? _selectedWalletId;
   List<Map<String, dynamic>> _wallets = [];
 
+  final List<Map<String, dynamic>> _defaultExpenseCategories = [
+    {'id': 'cat_food', 'name': 'Makanan', 'icon': '🍔', 'type': 'expense'},
+    {'id': 'cat_transport', 'name': 'Transportasi', 'icon': '🚗', 'type': 'expense'},
+    {'id': 'cat_shopping', 'name': 'Belanja', 'icon': '🛍️', 'type': 'expense'},
+    {'id': 'cat_bills', 'name': 'Tagihan', 'icon': '💡', 'type': 'expense'},
+    {'id': 'cat_entertainment', 'name': 'Hiburan', 'icon': '🎬', 'type': 'expense'},
+    {'id': 'cat_health', 'name': 'Kesehatan', 'icon': '💊', 'type': 'expense'},
+    {'id': 'cat_adj', 'name': 'Penyesuaian Manual', 'icon': '⚖️', 'type': 'expense'},
+    {'id': 'cat_other_exp', 'name': 'Lainnya', 'icon': '📦', 'type': 'expense'},
+  ];
+
+  final List<Map<String, dynamic>> _defaultIncomeCategories = [
+    {'id': 'cat_salary', 'name': 'Gaji', 'icon': '💰', 'type': 'income'},
+    {'id': 'cat_bonus', 'name': 'Bonus', 'icon': '🎁', 'type': 'income'},
+    {'id': 'cat_investment', 'name': 'Investasi', 'icon': '📈', 'type': 'income'},
+    {'id': 'cat_transfer_in', 'name': 'Transfer Masuk', 'icon': '📥', 'type': 'income'},
+    {'id': 'cat_adj_inc', 'name': 'Penyesuaian Manual', 'icon': '⚖️', 'type': 'income'},
+    {'id': 'cat_other_inc', 'name': 'Lainnya', 'icon': '📦', 'type': 'income'},
+  ];
+
   @override
   void initState() {
     super.initState();
-    _loadCategories();
+    _selectedCategoryId = _defaultExpenseCategories.first['id'];
     _loadWallets();
   }
 
@@ -52,28 +70,24 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     super.dispose();
   }
 
-  Future<void> _loadCategories() async {
-    final categories = await _supabase
-        .from('categories')
-        .select()
-        .or('type.eq.$_type,type.eq.both');
-    setState(() {
-      _categories = List<Map<String, dynamic>>.from(categories);
-    });
+  List<Map<String, dynamic>> get _currentCategories {
+    return _type == 'expense' ? _defaultExpenseCategories : _defaultIncomeCategories;
   }
 
   Future<void> _loadWallets() async {
+    final userId = FirestoreService.currentUserId;
+    if (userId == null) return;
     try {
-      final wallets = await _supabase.from('wallets').select().eq('user_id', _supabase.auth.currentUser!.id);
+      final wallets = await FirestoreService.getWallets(userId);
       if (mounted) {
         setState(() {
-          _wallets = List<Map<String, dynamic>>.from(wallets);
+          _wallets = wallets;
           if (_wallets.isNotEmpty) {
             _selectedWalletId = _wallets.first['id'];
           }
         });
       }
-    } catch(e) {}
+    } catch (_) {}
   }
 
   Future<void> _pickDate() async {
@@ -108,16 +122,30 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final userId = _supabase.auth.currentUser!.id;
+      final userId = FirestoreService.currentUserId;
+      if (userId == null) return;
+
       final amount = double.parse(_amountController.text.replaceAll('.', ''));
-      await _supabase.from('transactions').insert({
+      final category = _currentCategories.firstWhere(
+        (c) => c['id'] == _selectedCategoryId,
+        orElse: () => {'name': 'Lainnya'},
+      );
+
+      final dateStr = _selectedDate.toIso8601String().split('T')[0];
+      final note = _noteController.text.trim();
+
+      await FirestoreService.addTransaction({
         'user_id': userId,
         'wallet_id': _selectedWalletId,
         'amount': amount,
         'type': _type,
+        'category': category['name'],
         'category_id': _selectedCategoryId,
-        'note': _noteController.text,
-        'date': _selectedDate.toIso8601String().split('T')[0],
+        'note': note,
+        'description': note.isNotEmpty ? note : category['name'],
+        'date': dateStr,
+        'transaction_date': _selectedDate.toIso8601String(),
+        'source': 'MANUAL_ENTRY',
       });
 
       if (!mounted) return;
@@ -167,8 +195,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        setState(() => _type = 'expense');
-                        _loadCategories();
+                        setState(() {
+                          _type = 'expense';
+                          _selectedCategoryId = _defaultExpenseCategories.first['id'];
+                        });
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -187,8 +217,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        setState(() => _type = 'income');
-                        _loadCategories();
+                        setState(() {
+                          _type = 'income';
+                          _selectedCategoryId = _defaultIncomeCategories.first['id'];
+                        });
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -233,7 +265,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             const SizedBox(height: 24),
 
             if (_wallets.isNotEmpty) ...[
-              const Text('Keluarkan dari Dompet', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(
+                _type == 'expense' ? 'Keluarkan dari Dompet / Rekening' : 'Simpan ke Dompet / Rekening',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 dropdownColor: const Color(0xFF0F0F1A),
@@ -241,7 +276,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 items: _wallets.map((w) {
                   return DropdownMenuItem<String>(
                     value: w['id'],
-                    child: Text('${w['icon']} ${w['name']}', style: const TextStyle(color: Colors.white)),
+                    child: Text('${w['icon'] ?? '🏦'} ${w['name']}', style: const TextStyle(color: Colors.white)),
                   );
                 }).toList(),
                 onChanged: (val) => setState(() => _selectedWalletId = val),
@@ -256,12 +291,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
             const Text('Kategori', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            _categories.isEmpty
-                ? const CircularProgressIndicator(color: Color(0xFF6C63FF))
-                : Wrap(
+            Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _categories.map((cat) {
+              children: _currentCategories.map((cat) {
                 final isSelected = _selectedCategoryId == cat['id'];
                 return GestureDetector(
                   onTap: () => setState(() => _selectedCategoryId = cat['id']),
@@ -314,7 +347,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               controller: _noteController,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                labelText: 'Catatan (opsional)',
+                labelText: 'Catatan / Merchant (opsional)',
+                hintText: 'Misal: Shopee, Kopi Kenangan, Transfer',
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
                 labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                 prefixIcon: const Icon(Icons.note_outlined, color: Color(0xFF6C63FF)),
                 filled: true,
@@ -341,9 +376,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text(
-                  'Simpan Transaksi',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                        'Simpan Transaksi',
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
               ),
             ),
           ],

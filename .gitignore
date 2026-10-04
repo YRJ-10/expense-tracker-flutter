@@ -43,3 +43,18 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Security & Firebase Secrets (DO NOT COMMIT)
+**/google-services.json
+**/GoogleService-Info.plist
+lib/firebase_options.dart
+*firebase-adminsdk*.json
+*service-account*.json
+*.env
+*.env.*
+*.dev.vars
+
+# Cloudflare Wrangler & Backend
+**/node_modules/
+**/.wrangler/
+
