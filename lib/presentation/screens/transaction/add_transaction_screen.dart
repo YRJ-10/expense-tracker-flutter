@@ -30,6 +30,7 @@ class AddTransactionScreen extends StatefulWidget {
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
+  final _customCategoryController = TextEditingController();
   String _type = 'expense';
   String? _selectedCategoryId;
   DateTime _selectedDate = DateTime.now();
@@ -70,11 +71,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   void dispose() {
     _amountController.dispose();
     _noteController.dispose();
+    _customCategoryController.dispose();
     super.dispose();
   }
 
   List<Map<String, dynamic>> get _currentCategories {
     return _type == 'expense' ? _defaultExpenseCategories : _defaultIncomeCategories;
+  }
+
+  bool get _isOtherCategorySelected {
+    final cat = _currentCategories.firstWhere(
+      (c) => c['id'] == _selectedCategoryId,
+      orElse: () => {},
+    );
+    return cat['name'] == 'Lainnya';
   }
 
   Future<void> _loadWallets() async {
@@ -134,6 +144,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         orElse: () => {'name': 'Lainnya'},
       );
 
+      final isOther = category['name'] == 'Lainnya';
+      final customName = _customCategoryController.text.trim();
+      final categoryName = (isOther && customName.isNotEmpty)
+          ? customName
+          : (category['name'] as String);
+
       final dateStr = _selectedDate.toIso8601String().split('T')[0];
       final note = _noteController.text.trim();
 
@@ -142,10 +158,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         'wallet_id': _selectedWalletId,
         'amount': amount,
         'type': _type,
-        'category': category['name'],
+        'category': categoryName,
         'category_id': _selectedCategoryId,
         'note': note,
-        'description': note.isNotEmpty ? note : category['name'],
+        'description': note.isNotEmpty ? note : categoryName,
         'date': dateStr,
         'transaction_date': _selectedDate.toIso8601String(),
         'source': 'MANUAL_ENTRY',
@@ -290,11 +306,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
         // Cocokkan kategori pengeluaran
         final lower = result.category.toLowerCase();
+        bool matched = false;
         for (final cat in _defaultExpenseCategories) {
           final catName = (cat['name'] as String).toLowerCase();
-          if (catName.contains(lower) || lower.contains(catName)) {
+          if (catName != 'lainnya' && (catName.contains(lower) || lower.contains(catName))) {
             _selectedCategoryId = cat['id'];
+            _customCategoryController.clear();
+            matched = true;
             break;
+          }
+        }
+        if (!matched) {
+          _selectedCategoryId = 'cat_other_exp';
+          if (result.category.isNotEmpty && lower != 'lainnya') {
+            _customCategoryController.text = result.category;
           }
         }
 
@@ -435,6 +460,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         setState(() {
                           _type = 'expense';
                           _selectedCategoryId = _defaultExpenseCategories.first['id'];
+                          _customCategoryController.clear();
                         });
                       },
                       child: Container(
@@ -457,6 +483,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         setState(() {
                           _type = 'income';
                           _selectedCategoryId = _defaultIncomeCategories.first['id'];
+                          _customCategoryController.clear();
                         });
                       },
                       child: Container(
@@ -528,34 +555,64 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
             const Text('Kategori', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _currentCategories.map((cat) {
-                final isSelected = _selectedCategoryId == cat['id'];
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedCategoryId = cat['id']),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF6C63FF) : const Color(0xFF1A1A2E),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSelected ? const Color(0xFF6C63FF) : Colors.transparent,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(cat['icon'], style: const TextStyle(fontSize: 16)),
-                        const SizedBox(width: 6),
-                        Text(cat['name'], style: const TextStyle(color: Colors.white)),
-                      ],
-                    ),
+            DropdownButtonFormField<String>(
+              dropdownColor: const Color(0xFF1A1A2E),
+              value: _selectedCategoryId,
+              icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white70),
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.category_outlined, color: Color(0xFF6C63FF)),
+                filled: true,
+                fillColor: const Color(0xFF1A1A2E),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              items: _currentCategories.map((cat) {
+                return DropdownMenuItem<String>(
+                  value: cat['id'] as String,
+                  child: Row(
+                    children: [
+                      Text(cat['icon'] as String, style: const TextStyle(fontSize: 16)),
+                      const SizedBox(width: 10),
+                      Text(cat['name'] as String, style: const TextStyle(color: Colors.white)),
+                    ],
                   ),
                 );
               }).toList(),
+              onChanged: (val) {
+                setState(() {
+                  _selectedCategoryId = val;
+                  if (!_isOtherCategorySelected) {
+                    _customCategoryController.clear();
+                  }
+                });
+              },
             ),
+            if (_isOtherCategorySelected) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _customCategoryController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Sebutkan Kategori Lainnya',
+                  hintText: 'Misal: Donasi, Hobi, Beli Buku, dll.',
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                  labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+                  prefixIcon: const Icon(Icons.edit_note, color: Color(0xFF6C63FF)),
+                  filled: true,
+                  fillColor: const Color(0xFF1A1A2E),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: const Color(0xFF6C63FF).withValues(alpha: 0.4)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 1.5),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
 
             GestureDetector(
