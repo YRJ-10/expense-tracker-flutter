@@ -52,4 +52,4 @@ is recommended before any public deployment.
 ---
 
 ## Developer
-Developed by YRJ & Claude
+Developed by YRJ & Gemini
