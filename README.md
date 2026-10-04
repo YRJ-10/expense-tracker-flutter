@@ -108,4 +108,4 @@ Proyek ini dirancang dengan prinsip *zero-credential leakage*:
 ---
 
 ## 👤 Developer
-Dikembangkan oleh **YRJ**
+Dikembangkan oleh **YRJ & Gemini**
