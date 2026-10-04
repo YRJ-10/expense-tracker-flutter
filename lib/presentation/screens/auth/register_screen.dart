@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -13,7 +11,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLoading = false;
+  final bool _isLoading = false;
   bool _obscurePassword = true;
 
   @override
@@ -36,48 +34,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
-
-    try {
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      if (cred.user != null) {
-        await cred.user!.updateDisplayName(name);
-        await FirestoreService.saveProfile(cred.user!.uid, {
-          'id': cred.user!.uid,
-          'email': email,
-          'full_name': name,
-          'created_at': DateTime.now().toIso8601String(),
-        });
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Registrasi berhasil! Silakan login.'),
-          backgroundColor: Colors.green,
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Row(
+          children: [
+            Icon(Icons.app_blocking_outlined, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text('Registrasi Ditutup', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
         ),
-      );
-      Navigator.pushReplacementNamed(context, '/login');
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      String msg = 'Gagal registrasi: ${e.message}';
-      if (e.code == 'email-already-in-use') msg = 'Email sudah digunakan.';
-      if (e.code == 'weak-password') msg = 'Password terlalu lemah (minimal 6 karakter).';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+        content: const Text(
+          'Pendaftaran akun baru via email saat ini sedang ditutup.\n\nAplikasi ini bersifat privat dan hanya dapat diakses melalui autentikasi akun Google pemilik yang terdaftar.',
+          style: TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pushReplacementNamed(context, '/login');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
+            child: const Text('Kembali ke Login', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

@@ -15,9 +15,11 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   bool _isLoading = true;
   bool _isSaving = false;
   String _email = '';
+  String? _photoUrl;
   GmailSyncStatus _syncStatus = GmailSyncStatus(isConnected: false);
 
   @override
@@ -29,6 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -43,6 +46,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _nameController.text = profile?['full_name'] ?? user.displayName ?? '';
         _email = user.email ?? '';
+        _emailController.text = user.email ?? '';
+        _photoUrl = user.photoURL ?? profile?['photo_url'];
         _syncStatus = syncStatus;
         _isLoading = false;
       });
@@ -105,6 +110,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Navigator.pushReplacementNamed(context, '/login');
   }
 
+  Widget _buildFallbackInitial() {
+    return Center(
+      child: Text(
+        _nameController.text.isNotEmpty
+            ? _nameController.text[0].toUpperCase()
+            : '?',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 36,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -122,25 +142,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   const SizedBox(height: 24),
 
-                  // Avatar
+                  // Avatar (Google Photo or Initial)
                   Container(
                     width: 90,
                     height: 90,
                     decoration: BoxDecoration(
                       color: const Color(0xFF6C63FF),
-                      borderRadius: BorderRadius.circular(45),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF6C63FF), width: 2),
                     ),
-                    child: Center(
-                      child: Text(
-                        _nameController.text.isNotEmpty
-                            ? _nameController.text[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 36,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    child: ClipOval(
+                      child: _photoUrl != null && _photoUrl!.isNotEmpty
+                          ? Image.network(
+                              _photoUrl!,
+                              width: 90,
+                              height: 90,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _buildFallbackInitial(),
+                            )
+                          : _buildFallbackInitial(),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -156,8 +176,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       await Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()));
                       _loadProfile();
                     },
-                    leading: const Icon(Icons.mark_email_read, color: Color(0xFF6C63FF)),
-                    title: const Text('Integrasi Gmail Bank Mandiri', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    leading: const Icon(Icons.account_balance, color: Color(0xFF6C63FF)),
+                    title: const Text('Integrasi Mbanking', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     subtitle: Text(
                       _syncStatus.isConnected ? 'Terhubung (${_syncStatus.email})' : 'Belum Terhubung',
                       style: TextStyle(color: _syncStatus.isConnected ? Colors.greenAccent : Colors.orangeAccent, fontSize: 12),
@@ -196,13 +216,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 16),
                   TextField(
+                    controller: _emailController,
                     readOnly: true,
-                    style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                    style: const TextStyle(color: Colors.white70),
                     decoration: InputDecoration(
-                      labelText: 'Email',
+                      labelText: 'Email Terdaftar',
                       labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                      hintText: _email,
-                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                       prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF6C63FF)),
                       filled: true,
                       fillColor: const Color(0xFF1A1A2E),

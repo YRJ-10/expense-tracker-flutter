@@ -140,7 +140,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                                 existingGoal['id'],
                                 existingGoal['name'] ?? 'Target',
                               );
-                              if (deleted && mounted) {
+                              if (deleted && context.mounted) {
                                 Navigator.pop(context);
                               }
                             },
@@ -821,17 +821,20 @@ class _GoalsScreenState extends State<GoalsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'AKUMULASI TARGET MENABUNG',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
+              Expanded(
+                child: Text(
+                  'AKUMULASI TARGET',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.1,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(

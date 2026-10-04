@@ -12,7 +12,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLoading = false;
+  final bool _isLoading = false;
   bool _isGoogleLoading = false;
   bool _obscurePassword = true;
 
@@ -34,31 +34,30 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/home');
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      String msg = 'Gagal login: ${e.message}';
-      if (e.code == 'user-not-found') msg = 'Akun dengan email ini tidak ditemukan.';
-      if (e.code == 'wrong-password') msg = 'Password salah.';
-      if (e.code == 'invalid-credential') msg = 'Email atau password salah.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_person_outlined, color: Colors.orangeAccent),
+            SizedBox(width: 8),
+            Text('Akses Dibatasi', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'Login via Email & Password saat ini ditutup untuk keamanan.\n\nAplikasi ini bersifat privat. Silakan gunakan tombol "Masuk dengan Google" di bawah dengan akun Anda yang telah terdaftar.',
+          style: TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
+            child: const Text('Mengerti', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loginWithGoogle() async {

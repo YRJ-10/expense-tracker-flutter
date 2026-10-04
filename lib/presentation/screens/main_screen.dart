@@ -52,6 +52,8 @@ class _MainScreenState extends State<MainScreen> {
         color: const Color(0xFF1A1A2E),
         shape: const CircularNotchedRectangle(),
         notchMargin: 8,
+        padding: EdgeInsets.zero,
+        height: 64,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
@@ -70,22 +72,25 @@ class _MainScreenState extends State<MainScreen> {
     final isActive = _currentIndex == index;
     return InkWell(
       onTap: () => setState(() => _currentIndex = index),
+      borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               isActive ? activeIcon : icon,
               color: isActive ? const Color(0xFF6C63FF) : Colors.white38,
-              size: 24,
+              size: 22,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
                 color: isActive ? const Color(0xFF6C63FF) : Colors.white38,
-                fontSize: 11,
+                fontSize: 10,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
               ),
             ),
           ],

@@ -260,7 +260,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                               existingBudget['id'],
                               existingBudget['category_name'] ?? 'Kategori',
                             );
-                            if (deleted && mounted) {
+                            if (deleted && context.mounted) {
                               Navigator.pop(context);
                             }
                           },
@@ -782,8 +782,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                 style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
                               ),
                               const SizedBox(height: 20),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                              Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 10,
+                                runSpacing: 10,
                                 children: [
                                   OutlinedButton.icon(
                                     onPressed: _copyFromPreviousMonth,
@@ -794,7 +796,6 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
                                   ElevatedButton.icon(
                                     onPressed: () => _showAddOrEditBudgetModal(),
                                     icon: const Icon(Icons.add, size: 16, color: Colors.white),
