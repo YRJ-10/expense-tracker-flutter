@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:expense_tracker_flutter/config/app_config.dart';
 
 class GmailSyncResult {
   final bool success;
@@ -35,8 +36,8 @@ class GmailSyncStatus {
 }
 
 class GmailSyncService {
-  static const String baseUrl = 'https://YOUR-WORKER-SUBDOMAIN.workers.dev';
-  static const String apiToken = 'YOUR_WORKER_AUTH_TOKEN';
+  static const String baseUrl = AppConfig.backendUrl;
+  static const String apiToken = AppConfig.workerAuthToken;
 
   // 1. Buka halaman otorisasi OAuth Gmail
   static Future<bool> connectGmail(String userId) async {
