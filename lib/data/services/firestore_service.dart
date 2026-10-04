@@ -399,7 +399,8 @@ class FirestoreService {
       }
 
       final percentage = (spentThisMonth / limit) * 100;
-      if (percentage >= 80) {
+      final threshold = await NotificationService.getBudgetAlertThreshold();
+      if (percentage >= threshold) {
         await NotificationService.showBudgetWarning(
           category: categoryName,
           spent: spentThisMonth,
@@ -413,26 +414,63 @@ class FirestoreService {
   static Future<void> checkUpcomingDueDates(String userId) async {
     try {
       final debts = await getDebts(userId);
-      final today = DateTime.now();
+      final now = DateTime.now();
+      final offsetHours = await NotificationService.getDueDateOffsetHours();
+
       for (final debt in debts) {
-        if (debt['is_paid'] == true) continue;
+        final isPaid = debt['is_paid'] == true;
+        final isRecurring = debt['is_recurring'] == true;
+        final recurringDay = debt['recurring_day'] as int?;
         final dueStr = debt['due_date']?.toString();
-        if (dueStr != null) {
-          final dueDate = DateTime.tryParse(dueStr);
-          if (dueDate != null) {
-            final diff = dueDate.difference(DateTime(today.year, today.month, today.day)).inDays;
-            if (diff >= 0 && diff <= 1) {
-              final person = debt['person_name']?.toString() ?? 'Seseorang';
-              final amount = (debt['remaining_amount'] as num?)?.toDouble() ?? 0.0;
-              final isBorrowed = debt['type'] == 'borrowed';
-              await NotificationService.showDueDateAlert(
-                title: isBorrowed ? 'Bayar Utang' : 'Tagih Piutang',
-                personOrName: person,
-                amount: amount,
-                dueDate: diff == 0 ? 'Hari ini' : 'Besok',
-              );
-            }
+
+        // Hitung target due date berikutnya
+        final targetDueDate = NotificationService.calculateNextDueDate(
+          isRecurring: isRecurring,
+          recurringDay: recurringDay,
+          dueDateStr: dueStr,
+          isPaid: isPaid,
+        );
+
+        if (targetDueDate == null) continue;
+
+        // Jika bukan utang berulang dan sudah lunas, lewati
+        if (!isRecurring && isPaid) continue;
+
+        // Hitung selisih jam
+        final diffHours = targetDueDate.difference(now).inHours;
+
+        // Cek apakah masuk dalam jendela alert sesuai offset preferensi
+        bool shouldAlert = false;
+        if (offsetHours == 0) {
+          shouldAlert = diffHours >= 0 && diffHours <= 24;
+        } else {
+          shouldAlert = diffHours >= 0 && diffHours <= offsetHours;
+        }
+
+        if (shouldAlert) {
+          final person = debt['person_name']?.toString() ?? 'Seseorang';
+          final amount = (debt['remaining_amount'] as num?)?.toDouble() ?? 
+              ((debt['amount'] as num?)?.toDouble() ?? 0.0);
+          final isBorrowed = debt['type'] == 'borrowed';
+
+          String dueLabel;
+          if (diffHours <= 0) {
+            dueLabel = 'Hari ini (Segera)';
+          } else if (diffHours < 24) {
+            dueLabel = '$diffHours jam lagi';
+          } else if (diffHours < 48) {
+            dueLabel = 'Besok (~$diffHours jam lagi)';
+          } else {
+            final days = (diffHours / 24).ceil();
+            dueLabel = '$days hari lagi';
           }
+
+          await NotificationService.showDueDateAlert(
+            title: isBorrowed ? 'Bayar Utang' : 'Tagih Piutang',
+            personOrName: person,
+            amount: amount,
+            dueDate: dueLabel,
+          );
         }
       }
     } catch (_) {}

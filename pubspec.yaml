@@ -46,6 +46,7 @@ dependencies:
   path_provider: ^2.1.5
   open_filex: ^4.7.0
   csv: ^6.0.0
+  flutter_timezone: ^5.1.1
 
 dev_dependencies:
   flutter_test:

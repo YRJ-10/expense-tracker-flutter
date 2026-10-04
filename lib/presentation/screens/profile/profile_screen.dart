@@ -29,6 +29,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _cashReminderEnabled = true;
   bool _budgetAlertEnabled = true;
   bool _dueDateAlertEnabled = true;
+  TimeOfDay _cashReminderTime = const TimeOfDay(hour: 20, minute: 30);
+  int _budgetAlertThreshold = 80;
+  int _dueDateOffsetHours = 24;
 
   @override
   void initState() {
@@ -53,8 +56,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isBioEnabled = await BiometricService.isBiometricEnabled();
     final allowPin = await BiometricService.isPinFallbackAllowed();
     final cashReminder = await NotificationService.isCashReminderEnabled();
+    final reminderTime = await NotificationService.getCashReminderTime();
     final budgetAlert = await NotificationService.isBudgetAlertEnabled();
+    final budgetThreshold = await NotificationService.getBudgetAlertThreshold();
     final dueDateAlert = await NotificationService.isDueDateAlertEnabled();
+    final dueDateOffset = await NotificationService.getDueDateOffsetHours();
 
     if (mounted) {
       setState(() {
@@ -67,11 +73,194 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isBiometricEnabled = isBioEnabled;
         _allowPinFallback = allowPin;
         _cashReminderEnabled = cashReminder;
+        _cashReminderTime = reminderTime;
         _budgetAlertEnabled = budgetAlert;
+        _budgetAlertThreshold = budgetThreshold;
         _dueDateAlertEnabled = dueDateAlert;
+        _dueDateOffsetHours = dueDateOffset;
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _pickCashReminderTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _cashReminderTime,
+      builder: (context, child) => Theme(
+        data: ThemeData.dark().copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFF6C63FF),
+            surface: Color(0xFF1A1A2E),
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      await NotificationService.setCashReminderTime(picked);
+      if (mounted) {
+        setState(() => _cashReminderTime = picked);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Jam pengingat tunai diatur ke ${picked.format(context)}'),
+            backgroundColor: const Color(0xFF6C63FF),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _changeBudgetThreshold(int val) async {
+    await NotificationService.setBudgetAlertThreshold(val);
+    if (mounted) {
+      setState(() => _budgetAlertThreshold = val);
+    }
+  }
+
+  Future<void> _showDueDateOffsetPicker() async {
+    final options = [
+      {'hours': 72, 'label': 'H-3 Hari (72 Jam sebelum)'},
+      {'hours': 48, 'label': 'H-2 Hari (48 Jam sebelum)'},
+      {'hours': 24, 'label': 'H-1 Hari (24 Jam sebelum) - Standar'},
+      {'hours': 12, 'label': 'H-12 Jam sebelum'},
+      {'hours': 6, 'label': 'H-6 Jam sebelum'},
+      {'hours': 3, 'label': 'H-3 Jam sebelum'},
+      {'hours': 0, 'label': 'Hari H (Hari Jatuh Tempo)'},
+    ];
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  'Pilih Waktu Pengingat Jatuh Tempo',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...options.map((opt) {
+                final int h = opt['hours'] as int;
+                final String lbl = opt['label'] as String;
+                final bool isSelected = _dueDateOffsetHours == h;
+
+                return ListTile(
+                  title: Text(
+                    lbl,
+                    style: TextStyle(
+                      color: isSelected ? const Color(0xFF6C63FF) : Colors.white,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  trailing: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF6C63FF)) : null,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await NotificationService.setDueDateOffsetHours(h);
+                    if (mounted) {
+                      setState(() => _dueDateOffsetHours = h);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Waktu pengingat diatur: $lbl'),
+                          backgroundColor: const Color(0xFF6C63FF),
+                        ),
+                      );
+                    }
+                  },
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showTestNotificationSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  '🧪 Uji Coba Notifikasi',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  'Pilih metode pengujian untuk memverifikasi banner notifikasi di HP Anda.',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.flash_on, color: Colors.amberAccent),
+                title: const Text('Kirim Seketika (0 Detik)', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Notifikasi langsung muncul detik ini juga', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await NotificationService.showTestNotification(delaySeconds: 0);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.timer_outlined, color: Colors.cyanAccent),
+                title: const Text('Jadwalkan 10 Detik Lagi', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Kunci layar HP Anda sekarang untuk tes alarm saat layar mati', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await NotificationService.showTestNotification(delaySeconds: 10);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Alarm dijadwalkan dalam 10 detik! Coba kunci layar HP Anda.'),
+                        backgroundColor: Color(0xFF6C63FF),
+                        duration: Duration(seconds: 4),
+                      ),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.schedule, color: Color(0xFF6C63FF)),
+                title: const Text('Jadwalkan 1 Menit Lagi', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Uji ketepatan alarm berjangka 60 detik', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await NotificationService.showTestNotification(delaySeconds: 60);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Alarm dijadwalkan dalam 1 menit!'),
+                        backgroundColor: Color(0xFF6C63FF),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _toggleBiometric(bool enable) async {
@@ -346,17 +535,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         SwitchListTile(
                           secondary: const Icon(Icons.notifications_active_outlined, color: Color(0xFF6C63FF)),
                           title: const Text(
-                            'Pengingat Tunai Malam (20:30)',
+                            'Pengingat Transaksi Tunai',
                             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                           ),
-                          subtitle: const Text(
-                            'Ingatkan catat transaksi tunai/cash setiap malam',
-                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          subtitle: Text(
+                            'Ingatkan catat pengeluaran tunai setiap ${_cashReminderTime.format(context)}',
+                            style: const TextStyle(color: Colors.white54, fontSize: 12),
                           ),
                           value: _cashReminderEnabled,
                           activeThumbColor: const Color(0xFF6C63FF),
                           onChanged: (val) => _toggleCashReminder(val),
                         ),
+                        if (_cashReminderEnabled)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                            child: InkWell(
+                              onTap: _pickCashReminderTime,
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0F0F1A),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.4)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.access_time, color: Color(0xFF6C63FF), size: 16),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        'Jam Pengingat: ${_cashReminderTime.format(context)}',
+                                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.edit, color: Colors.white54, size: 14),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         const Divider(color: Colors.white10, height: 1),
                         SwitchListTile(
                           secondary: const Icon(Icons.warning_amber_rounded, color: Colors.amberAccent),
@@ -364,14 +584,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             'Peringatan Batas Anggaran',
                             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                           ),
-                          subtitle: const Text(
-                            'Notifikasi saat pengeluaran mencapai 80% atau overbudget',
-                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          subtitle: Text(
+                            'Notifikasi saat pengeluaran mencapai ${_budgetAlertThreshold}% atau overbudget',
+                            style: const TextStyle(color: Colors.white54, fontSize: 12),
                           ),
                           value: _budgetAlertEnabled,
                           activeThumbColor: const Color(0xFF6C63FF),
                           onChanged: (val) => _toggleBudgetAlert(val),
                         ),
+                        if (_budgetAlertEnabled)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Batas Ambang: ${_budgetAlertThreshold}%',
+                                      style: const TextStyle(color: Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                                    ),
+                                    Text(
+                                      'Overbudget: 100%',
+                                      style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                                SliderTheme(
+                                  data: SliderTheme.of(context).copyWith(
+                                    activeTrackColor: Colors.amberAccent,
+                                    inactiveTrackColor: Colors.white12,
+                                    thumbColor: Colors.amberAccent,
+                                    overlayColor: Colors.amberAccent.withOpacity(0.2),
+                                    valueIndicatorColor: const Color(0xFF1A1A2E),
+                                  ),
+                                  child: Slider(
+                                    value: _budgetAlertThreshold.toDouble(),
+                                    min: 50,
+                                    max: 95,
+                                    divisions: 9,
+                                    label: '$_budgetAlertThreshold%',
+                                    onChanged: (val) => _changeBudgetThreshold(val.round()),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         const Divider(color: Colors.white10, height: 1),
                         SwitchListTile(
                           secondary: const Icon(Icons.alarm, color: Colors.cyanAccent),
@@ -379,13 +638,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             'Pengingat Jatuh Tempo',
                             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                           ),
-                          subtitle: const Text(
-                            'Pemberitahuan H-1 sebelum utang atau tagihan jatuh tempo',
-                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          subtitle: Text(
+                            'Pemberitahuan ${NotificationService.getDueDateOffsetLabel(_dueDateOffsetHours)} sebelum jatuh tempo',
+                            style: const TextStyle(color: Colors.white54, fontSize: 12),
                           ),
                           value: _dueDateAlertEnabled,
                           activeThumbColor: const Color(0xFF6C63FF),
                           onChanged: (val) => _toggleDueDateAlert(val),
+                        ),
+                        if (_dueDateAlertEnabled)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                            child: InkWell(
+                              onTap: _showDueDateOffsetPicker,
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0F0F1A),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.cyanAccent.withOpacity(0.4)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.timer_outlined, color: Colors.cyanAccent, size: 16),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        'Waktu Pengingat: ${NotificationService.getDueDateOffsetLabel(_dueDateOffsetHours)}',
+                                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.arrow_drop_down, color: Colors.white54, size: 18),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        const Divider(color: Colors.white10, height: 1),
+                        ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.science_outlined, color: Colors.purpleAccent, size: 20),
+                          title: const Text('Uji Notifikasi Perangkat', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                          subtitle: const Text('Tes langsung apakah banner notifikasi muncul di HP Anda', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                          trailing: const Icon(Icons.chevron_right, color: Colors.white38, size: 18),
+                          onTap: _showTestNotificationSheet,
                         ),
                       ],
                     ),

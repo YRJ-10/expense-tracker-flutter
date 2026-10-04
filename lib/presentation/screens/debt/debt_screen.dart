@@ -1,6 +1,8 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
+import 'package:expense_tracker_flutter/data/services/notification_service.dart';
 import 'package:expense_tracker_flutter/utils/formatters.dart';
 
 class DebtScreen extends StatefulWidget {
@@ -52,6 +54,9 @@ class _DebtScreenState extends State<DebtScreen> {
     final nameController = TextEditingController();
     final amountController = TextEditingController();
     String type = 'borrowed'; // 'borrowed' (Utang) atau 'lent' (Piutang)
+    DateTime? dueDate;
+    bool isRecurring = false;
+    int recurringDay = 25;
 
     showModalBottomSheet(
       context: context,
@@ -167,6 +172,130 @@ class _DebtScreenState extends State<DebtScreen> {
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F0F1A),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                            title: const Text(
+                              'Tagihan Rutin Bulanan',
+                              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: const Text(
+                              'Misal: Kartu Kredit / Paylater / Cicilan',
+                              style: TextStyle(color: Colors.white54, fontSize: 11),
+                            ),
+                            value: isRecurring,
+                            activeThumbColor: const Color(0xFF6C63FF),
+                            onChanged: (val) => setStateModal(() => isRecurring = val),
+                          ),
+                          if (isRecurring) ...[
+                            const Divider(color: Colors.white10, height: 1),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Jatuh tempo setiap tgl:',
+                                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                                  ),
+                                  DropdownButton<int>(
+                                    value: recurringDay,
+                                    dropdownColor: const Color(0xFF1A1A2E),
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                    underline: const SizedBox.shrink(),
+                                    items: List.generate(31, (index) => index + 1)
+                                        .map((d) => DropdownMenuItem(
+                                              value: d,
+                                              child: Text('Tanggal $d'),
+                                            ))
+                                        .toList(),
+                                    onChanged: (val) {
+                                      if (val != null) setStateModal(() => recurringDay = val);
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (!isRecurring) ...[
+                      const SizedBox(height: 16),
+                      InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: dueDate ?? DateTime.now().add(const Duration(days: 30)),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2050),
+                            builder: (context, child) => Theme(
+                              data: ThemeData.dark().copyWith(
+                                colorScheme: const ColorScheme.dark(
+                                  primary: Color(0xFF6C63FF),
+                                  surface: Color(0xFF1A1A2E),
+                                ),
+                              ),
+                              child: child!,
+                            ),
+                          );
+                          if (picked != null) {
+                            setStateModal(() => dueDate = picked);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F0F1A),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.event_outlined, color: Color(0xFF6C63FF), size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Tanggal Jatuh Tempo (Opsional)',
+                                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      dueDate != null
+                                          ? DateFormat('dd MMMM yyyy', 'id_ID').format(dueDate!)
+                                          : 'Belum diatur (Pilih tanggal)',
+                                      style: TextStyle(
+                                        color: dueDate != null ? Colors.white : Colors.white38,
+                                        fontSize: 14,
+                                        fontWeight: dueDate != null ? FontWeight.w500 : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (dueDate != null)
+                                IconButton(
+                                  icon: const Icon(Icons.clear, size: 16, color: Colors.white54),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: () => setStateModal(() => dueDate = null),
+                                )
+                              else
+                                const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
@@ -186,6 +315,10 @@ class _DebtScreenState extends State<DebtScreen> {
                               'paid_amount': 0.0,
                               'type': type,
                               'is_paid': false,
+                              'is_recurring': isRecurring,
+                              if (isRecurring) 'recurring_day': recurringDay,
+                              if (!isRecurring && dueDate != null)
+                                'due_date': dueDate!.toIso8601String().split('T')[0],
                             });
                             if (context.mounted) Navigator.pop(context);
                             _loadData();
@@ -421,6 +554,9 @@ class _DebtScreenState extends State<DebtScreen> {
       text: totalAmt.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.'),
     );
     bool isPaid = debt['is_paid'] == true || remainingAmt <= 0;
+    bool isRecurring = debt['is_recurring'] == true;
+    int recurringDay = (debt['recurring_day'] as num?)?.toInt() ?? 25;
+    DateTime? editDueDate = debt['due_date'] != null ? DateTime.tryParse(debt['due_date'].toString()) : null;
 
     showModalBottomSheet(
       context: context,
@@ -514,11 +650,135 @@ class _DebtScreenState extends State<DebtScreen> {
                       ),
                     ),
                     const SizedBox(height: 14),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F0F1A),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                            title: const Text(
+                              'Tagihan Rutin Bulanan',
+                              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: const Text(
+                              'Misal: Kartu Kredit / Paylater / Cicilan',
+                              style: TextStyle(color: Colors.white54, fontSize: 11),
+                            ),
+                            value: isRecurring,
+                            activeThumbColor: const Color(0xFF6C63FF),
+                            onChanged: (val) => setModalState(() => isRecurring = val),
+                          ),
+                          if (isRecurring) ...[
+                            const Divider(color: Colors.white10, height: 1),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Jatuh tempo setiap tgl:',
+                                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                                  ),
+                                  DropdownButton<int>(
+                                    value: recurringDay,
+                                    dropdownColor: const Color(0xFF1A1A2E),
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                    underline: const SizedBox.shrink(),
+                                    items: List.generate(31, (index) => index + 1)
+                                        .map((d) => DropdownMenuItem(
+                                              value: d,
+                                              child: Text('Tanggal $d'),
+                                            ))
+                                        .toList(),
+                                    onChanged: (val) {
+                                      if (val != null) setModalState(() => recurringDay = val);
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (!isRecurring) ...[
+                      const SizedBox(height: 14),
+                      InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: editDueDate ?? DateTime.now().add(const Duration(days: 30)),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2050),
+                            builder: (context, child) => Theme(
+                              data: ThemeData.dark().copyWith(
+                                colorScheme: const ColorScheme.dark(
+                                  primary: Color(0xFF6C63FF),
+                                  surface: Color(0xFF1A1A2E),
+                                ),
+                              ),
+                              child: child!,
+                            ),
+                          );
+                          if (picked != null) {
+                            setModalState(() => editDueDate = picked);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F0F1A),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.event_outlined, color: Color(0xFF6C63FF), size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Tanggal Jatuh Tempo',
+                                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      editDueDate != null
+                                          ? DateFormat('dd MMMM yyyy', 'id_ID').format(editDueDate!)
+                                          : 'Belum diatur (Pilih tanggal)',
+                                      style: TextStyle(
+                                        color: editDueDate != null ? Colors.white : Colors.white38,
+                                        fontSize: 14,
+                                        fontWeight: editDueDate != null ? FontWeight.w500 : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (editDueDate != null)
+                                IconButton(
+                                  icon: const Icon(Icons.clear, size: 16, color: Colors.white54),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: () => setModalState(() => editDueDate = null),
+                                )
+                              else
+                                const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Status Lunas', style: TextStyle(color: Colors.white, fontSize: 14)),
                       value: isPaid,
-                      activeColor: Colors.greenAccent,
+                      activeThumbColor: Colors.greenAccent,
                       onChanged: (val) {
                         setModalState(() {
                           isPaid = val;
@@ -542,6 +802,9 @@ class _DebtScreenState extends State<DebtScreen> {
                             'remaining_amount': newRem,
                             'paid_amount': newPaid,
                             'is_paid': isPaid || newRem <= 0,
+                            'is_recurring': isRecurring,
+                            'recurring_day': isRecurring ? recurringDay : null,
+                            'due_date': !isRecurring && editDueDate != null ? editDueDate!.toIso8601String().split('T')[0] : null,
                             'updated_at': DateTime.now().toIso8601String(),
                           });
 
@@ -802,6 +1065,76 @@ class _DebtScreenState extends State<DebtScreen> {
                                     ),
                                   ),
                                 ],
+                              ),
+                              Builder(
+                                builder: (context) {
+                                  final isRecurring = debt['is_recurring'] == true;
+                                  final recurringDay = (debt['recurring_day'] as num?)?.toInt();
+                                  final dueStr = debt['due_date']?.toString();
+
+                                  if (!isRecurring && dueStr == null) return const SizedBox.shrink();
+
+                                  final targetDueDate = NotificationService.calculateNextDueDate(
+                                    isRecurring: isRecurring,
+                                    recurringDay: recurringDay,
+                                    dueDateStr: dueStr,
+                                    isPaid: isPaid,
+                                  );
+
+                                  if (targetDueDate == null) return const SizedBox.shrink();
+
+                                  final now = DateTime.now();
+                                  final diffHours = targetDueDate.difference(now).inHours;
+                                  final diffDays = targetDueDate.difference(DateTime(now.year, now.month, now.day)).inDays;
+
+                                  Color dueColor = Colors.white54;
+                                  String dueText;
+                                  final prefix = isRecurring ? 'Rutin tgl $recurringDay • ' : '';
+
+                                  if (isPaid && !isRecurring) {
+                                    dueColor = Colors.white38;
+                                    dueText = 'Jatuh tempo: ${DateFormat('dd MMM yyyy', 'id_ID').format(targetDueDate)} (Lunas)';
+                                  } else if (isPaid && isRecurring) {
+                                    dueColor = Colors.greenAccent;
+                                    dueText = '$prefix Siklus ini lunas (Berikutnya: ${DateFormat('dd MMM yyyy', 'id_ID').format(targetDueDate)})';
+                                  } else if (diffHours < 0) {
+                                    dueColor = Colors.redAccent;
+                                    dueText = '$prefix Lewat jatuh tempo (${DateFormat('dd MMM yyyy', 'id_ID').format(targetDueDate)})';
+                                  } else if (diffHours <= 12) {
+                                    dueColor = Colors.redAccent;
+                                    dueText = '$prefix ⚠️ Jatuh tempo dalam $diffHours jam!';
+                                  } else if (diffDays == 0) {
+                                    dueColor = Colors.amberAccent;
+                                    dueText = '$prefix Jatuh tempo hari ini!';
+                                  } else if (diffDays == 1) {
+                                    dueColor = Colors.amberAccent;
+                                    dueText = '$prefix Jatuh tempo besok!';
+                                  } else {
+                                    dueColor = Colors.white70;
+                                    dueText = '$prefix Jatuh tempo: ${DateFormat('dd MMM yyyy', 'id_ID').format(targetDueDate)}';
+                                  }
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Row(
+                                      children: [
+                                        Icon(isRecurring ? Icons.autorenew : Icons.event_outlined, size: 13, color: dueColor),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            dueText,
+                                            style: TextStyle(
+                                              color: dueColor,
+                                              fontSize: 11,
+                                              fontWeight: (diffDays <= 1 || diffHours <= 12) && !isPaid ? FontWeight.bold : FontWeight.normal,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
                               ),
                               const SizedBox(height: 14),
 
