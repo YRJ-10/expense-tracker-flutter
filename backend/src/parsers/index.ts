@@ -1,5 +1,6 @@
 import { BankEmailParser, ParsedTransaction } from '../types';
 import { MandiriLivinParser } from './mandiri';
+export { parseWithGeminiFallback } from './ai_fallback';
 
 export class ParserRegistry {
   private parsers: BankEmailParser[] = [];

@@ -1,7 +1,7 @@
 import { Env } from './types';
 import { FirestoreClient } from './firestore';
 import { GmailClient } from './gmail';
-import { ParserRegistry } from './parsers';
+import { ParserRegistry, parseWithGeminiFallback } from './parsers';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -220,7 +220,12 @@ export default {
           const msg = await gmail.getMessage(accessToken, msgId);
           if (!msg) continue;
 
-          const parsed = parserRegistry.parseEmail(msgId, msg.from, msg.subject, msg.body);
+          let parsed = parserRegistry.parseEmail(msgId, msg.from, msg.subject, msg.body);
+          if (!parsed && env.GEMINI_API_KEY) {
+            // Layer 2: Fallback ke Gemini AI jika regex tidak mengenali layout email
+            parsed = await parseWithGeminiFallback(msgId, msg.from, msg.subject, msg.body, env.GEMINI_API_KEY);
+          }
+
           if (parsed) {
             const saved = await firestore.saveParsedTransaction(userId, parsed);
             if (saved) {
