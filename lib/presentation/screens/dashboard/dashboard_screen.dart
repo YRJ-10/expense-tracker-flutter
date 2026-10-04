@@ -19,6 +19,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _totalBalance = 0;
   double _bankBalance = 0;
   double _cashBalance = 0;
+  double _totalDebt = 0;
   double _monthlyIncome = 0;
   double _monthlyExpense = 0;
   List<Map<String, dynamic>> _recentTransactions = [];
@@ -26,11 +27,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DateTime _selectedDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
   GmailSyncStatus _syncStatus = GmailSyncStatus(isConnected: false);
   bool _isSyncing = false;
+  bool _hasInitialSynced = false;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadData().then((_) {
+      _silentAutoSync();
+    });
   }
 
   Future<void> _loadData() async {
@@ -41,10 +45,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     try {
-      // Load profile
+      // Load profile & data
       final profile = await FirestoreService.getProfile(userId);
       final allT = await FirestoreService.getTransactions(userId);
       final wallets = await FirestoreService.getWallets(userId);
+      final debts = await FirestoreService.getDebts(userId);
       final syncStatus = await GmailSyncService.getStatus(userId);
 
       double tBalance = 0;
@@ -74,6 +79,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
         }
         bBalance = tBalance;
+      }
+
+      // Calculate unpaid borrowed debts
+      double dDebt = 0;
+      for (var d in debts) {
+        if (d['type'] == 'borrowed' && d['is_paid'] != true) {
+          final double total = (d['amount'] as num?)?.toDouble() ?? 0.0;
+          final double rem = (d['remaining_amount'] as num?)?.toDouble() ?? total;
+          if (rem > 0) {
+            dDebt += rem;
+          }
+        }
       }
 
       // Filter monthly transactions
@@ -108,6 +125,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _totalBalance = tBalance;
         _bankBalance = bBalance;
         _cashBalance = cBalance;
+        _totalDebt = dDebt;
         _monthlyIncome = mIncome;
         _monthlyExpense = mExpense;
         _recentTransactions = List<Map<String, dynamic>>.from(recent);
@@ -145,8 +163,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _silentAutoSync() async {
+    if (_hasInitialSynced || _isSyncing) return;
+    _hasInitialSynced = true;
+
+    final userId = FirestoreService.currentUserId;
+    if (userId == null || !_syncStatus.isConnected) return;
+
+    if (mounted) setState(() => _isSyncing = true);
+    try {
+      final res = await GmailSyncService.triggerSync(userId);
+      if (mounted) {
+        setState(() => _isSyncing = false);
+        if (res.success && res.newTransactionsCount > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Auto-sync: +${res.newTransactionsCount} transaksi Mandiri baru ditemukan!'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          _loadData();
+        }
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isSyncing = false);
+    }
+  }
+
   String _formatCurrency(double amount) {
-    return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
+    final bool isNeg = amount < 0;
+    final String numStr = amount.abs().toStringAsFixed(0).replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
+    return isNeg ? '-Rp $numStr' : 'Rp $numStr';
   }
 
   void _changeMonth(int increment) {
@@ -229,7 +280,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
           : RefreshIndicator(
-              onRefresh: _loadData,
+              onRefresh: () async {
+                final userId = FirestoreService.currentUserId;
+                if (userId != null && _syncStatus.isConnected) {
+                  setState(() => _isSyncing = true);
+                  try {
+                    final res = await GmailSyncService.triggerSync(userId);
+                    if (mounted) {
+                      setState(() => _isSyncing = false);
+                      if (res.success && res.newTransactionsCount > 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('+${res.newTransactionsCount} transaksi Mandiri baru disinkronkan!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    }
+                  } catch (_) {
+                    if (mounted) setState(() => _isSyncing = false);
+                  }
+                }
+                await _loadData();
+              },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(24),
@@ -389,6 +462,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           ),
                                         ),
                                       ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            // Total Bersih (Saldo - Utang)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.14),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.shield_outlined, size: 14, color: Colors.white.withOpacity(0.7)),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Total Bersih (Saldo - Utang)',
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.75),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    _formatCurrency(_totalBalance - _totalDebt),
+                                    style: TextStyle(
+                                      color: (_totalBalance - _totalDebt) >= 0 ? Colors.greenAccent : Colors.redAccent,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ],
