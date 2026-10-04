@@ -517,6 +517,36 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
+  Future<void> _confirmDeleteWallet(Map<String, dynamic> wallet) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Text('Hapus Rekening/Dompet?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus "${wallet['name']}"?\n\nRiwayat transaksi yang sudah dicatat tidak akan terhapus.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && wallet['id'] != null) {
+      await FirestoreService.deleteWallet(wallet['id']);
+      _loadData();
+    }
+  }
+
   String _formatCurrency(double amount) {
     return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
   }
@@ -767,18 +797,28 @@ class _WalletScreenState extends State<WalletScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                TextButton.icon(
-                                  onPressed: () => _showReconciliationModal(wallet),
-                                  icon: const Icon(Icons.sync_alt, size: 16, color: Color(0xFF6C63FF)),
-                                  label: const Text('Rekonsiliasi Saldo', style: TextStyle(color: Color(0xFF6C63FF), fontSize: 13)),
+                                Row(
+                                  children: [
+                                    TextButton.icon(
+                                      onPressed: () => _showReconciliationModal(wallet),
+                                      icon: const Icon(Icons.sync_alt, size: 16, color: Color(0xFF6C63FF)),
+                                      label: const Text('Rekonsiliasi', style: TextStyle(color: Color(0xFF6C63FF), fontSize: 13)),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    TextButton.icon(
+                                      onPressed: () async {
+                                        await Navigator.pushNamed(context, '/add-transaction');
+                                        _loadData();
+                                      },
+                                      icon: const Icon(Icons.edit_note, size: 16, color: Colors.white70),
+                                      label: const Text('Adjust', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                    ),
+                                  ],
                                 ),
-                                TextButton.icon(
-                                  onPressed: () async {
-                                    await Navigator.pushNamed(context, '/add-transaction');
-                                    _loadData();
-                                  },
-                                  icon: const Icon(Icons.edit_note, size: 16, color: Colors.white70),
-                                  label: const Text('Adjust Manual', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                                  tooltip: 'Hapus Rekening',
+                                  onPressed: () => _confirmDeleteWallet(wallet),
                                 ),
                               ],
                             ),

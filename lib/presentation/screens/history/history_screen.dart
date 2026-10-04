@@ -64,9 +64,36 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
   }
 
-  Future<void> _deleteTransaction(String id) async {
-    await FirestoreService.deleteTransaction(id);
-    _loadTransactions();
+  Future<bool> _confirmDeleteTransaction(String id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Text('Hapus Transaksi?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Apakah Anda yakin ingin menghapus transaksi ini?\n\nSaldo dompet terkait akan disesuaikan kembali secara otomatis.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await FirestoreService.deleteTransaction(id);
+      _loadTransactions();
+      return true;
+    }
+    return false;
   }
 
   void _showEditTransactionModal(Map<String, dynamic> t) {
@@ -208,8 +235,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       children: [
                         OutlinedButton.icon(
                           onPressed: () async {
-                            Navigator.pop(context);
-                            _deleteTransaction(t['id']);
+                            final deleted = await _confirmDeleteTransaction(t['id']);
+                            if (deleted && context.mounted) {
+                              Navigator.pop(context);
+                            }
                           },
                           icon: const Icon(Icons.delete, size: 16, color: Colors.redAccent),
                           label: const Text('Hapus', style: TextStyle(color: Colors.redAccent)),
@@ -381,7 +410,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 ),
                                 child: const Icon(Icons.delete, color: Colors.white),
                               ),
-                              onDismissed: (_) => _deleteTransaction(t['id']),
+                              confirmDismiss: (_) => _confirmDeleteTransaction(t['id']),
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(16),
                                 onTap: () => _showEditTransactionModal(t),

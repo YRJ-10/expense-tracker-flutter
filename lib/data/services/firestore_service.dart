@@ -170,6 +170,84 @@ class FirestoreService {
     await _db.collection('financial_goals').doc(goalId).delete();
   }
 
+  static Future<void> contributeToGoal({
+    required String goalId,
+    required String userId,
+    required double amount,
+    required String walletId,
+    required String goalName,
+    String? note,
+  }) async {
+    final goalDoc = await _db.collection('financial_goals').doc(goalId).get();
+    if (!goalDoc.exists) return;
+
+    final currentAmount = (goalDoc.data()?['current_amount'] as num?)?.toDouble() ?? 0.0;
+    final newAmount = currentAmount + amount;
+
+    await _db.collection('financial_goals').doc(goalId).set({
+      'current_amount': newAmount,
+      'last_contribution_date': DateTime.now().toIso8601String(),
+    }, SetOptions(merge: true));
+
+    final desc = (note != null && note.trim().isNotEmpty)
+        ? note.trim()
+        : 'Nabung Target: $goalName';
+
+    await addTransaction({
+      'user_id': userId,
+      'wallet_id': walletId,
+      'amount': amount,
+      'type': 'expense',
+      'category': 'Tabungan Target',
+      'category_id': 'cat_savings',
+      'note': desc,
+      'description': desc,
+      'goal_id': goalId,
+      'date': DateTime.now().toIso8601String().split('T')[0],
+      'transaction_date': DateTime.now().toIso8601String(),
+      'source': 'GOAL_CONTRIBUTION',
+    });
+  }
+
+  static Future<void> withdrawFromGoal({
+    required String goalId,
+    required String userId,
+    required double amount,
+    required String walletId,
+    required String goalName,
+    String? note,
+  }) async {
+    final goalDoc = await _db.collection('financial_goals').doc(goalId).get();
+    if (!goalDoc.exists) return;
+
+    final currentAmount = (goalDoc.data()?['current_amount'] as num?)?.toDouble() ?? 0.0;
+    final newAmount = (currentAmount - amount).clamp(0.0, double.infinity);
+
+    await _db.collection('financial_goals').doc(goalId).set({
+      'current_amount': newAmount,
+      'last_withdrawal_date': DateTime.now().toIso8601String(),
+    }, SetOptions(merge: true));
+
+    final desc = (note != null && note.trim().isNotEmpty)
+        ? note.trim()
+        : 'Pencairan Target: $goalName';
+
+    await addTransaction({
+      'user_id': userId,
+      'wallet_id': walletId,
+      'amount': amount,
+      'type': 'income',
+      'category': 'Cairkan Tabungan',
+      'category_id': 'cat_savings_withdraw',
+      'note': desc,
+      'description': desc,
+      'goal_id': goalId,
+      'date': DateTime.now().toIso8601String().split('T')[0],
+      'transaction_date': DateTime.now().toIso8601String(),
+      'source': 'GOAL_WITHDRAWAL',
+    });
+  }
+
   // ------------------ DEBTS ------------------
   static Future<List<Map<String, dynamic>>> getDebts(String userId) async {
     final snap = await _db.collection('debts').where('user_id', isEqualTo: userId).get();

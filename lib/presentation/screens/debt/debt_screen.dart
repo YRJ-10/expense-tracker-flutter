@@ -572,6 +572,38 @@ class _DebtScreenState extends State<DebtScreen> {
     );
   }
 
+  Future<bool> _confirmDeleteDebt(Map<String, dynamic> debt) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Text('Hapus Catatan?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus catatan utang/piutang "${debt['person_name']}"?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && debt['id'] != null) {
+      await FirestoreService.deleteDebt(debt['id']);
+      _loadData();
+      return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Hitung total akumulasi utang dan piutang
@@ -704,9 +736,7 @@ class _DebtScreenState extends State<DebtScreen> {
                       return Dismissible(
                         key: Key(debt['id'] ?? UniqueKey().toString()),
                         direction: DismissDirection.endToStart,
-                        onDismissed: (_) {
-                          if (debt['id'] != null) FirestoreService.deleteDebt(debt['id']);
-                        },
+                        confirmDismiss: (_) => _confirmDeleteDebt(debt),
                         background: Container(
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 20),
@@ -855,6 +885,12 @@ class _DebtScreenState extends State<DebtScreen> {
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                                     ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, size: 20, color: Colors.redAccent),
+                                    tooltip: 'Hapus Catatan',
+                                    onPressed: () => _confirmDeleteDebt(debt),
                                   ),
                                 ],
                               ),
