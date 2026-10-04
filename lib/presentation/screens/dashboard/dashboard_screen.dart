@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 import 'package:expense_tracker_flutter/data/services/gmail_sync_service.dart';
 import 'package:expense_tracker_flutter/presentation/screens/wallet/wallet_screen.dart';
@@ -18,6 +17,8 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   String _userName = '';
   double _totalBalance = 0;
+  double _bankBalance = 0;
+  double _cashBalance = 0;
   double _monthlyIncome = 0;
   double _monthlyExpense = 0;
   List<Map<String, dynamic>> _recentTransactions = [];
@@ -47,10 +48,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final syncStatus = await GmailSyncService.getStatus(userId);
 
       double tBalance = 0;
+      double bBalance = 0;
+      double cBalance = 0;
 
       // Add all wallet balances
       for (var w in wallets) {
-        tBalance += (w['balance'] as num?)?.toDouble() ?? 0.0;
+        final bal = (w['balance'] as num?)?.toDouble() ?? 0.0;
+        tBalance += bal;
+        final bankName = (w['bank_name'] ?? '').toString().toUpperCase();
+        if (bankName == 'CASH') {
+          cBalance += bal;
+        } else {
+          bBalance += bal;
+        }
       }
 
       // If no wallets yet, sum directly from transactions
@@ -63,6 +73,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             tBalance -= amt;
           }
         }
+        bBalance = tBalance;
       }
 
       // Filter monthly transactions
@@ -95,6 +106,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       setState(() {
         _userName = profile?['full_name'] ?? 'Pengguna';
         _totalBalance = tBalance;
+        _bankBalance = bBalance;
+        _cashBalance = cBalance;
         _monthlyIncome = mIncome;
         _monthlyExpense = mExpense;
         _recentTransactions = List<Map<String, dynamic>>.from(recent);
@@ -224,58 +237,165 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Balance Card
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF6C63FF), Color(0xFF9C95FF)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Total Saldo',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.8),
-                                  fontSize: 14,
-                                ),
-                              ),
-                              if (_syncStatus.isConnected)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: const [
-                                      Icon(Icons.check_circle, size: 12, color: Colors.greenAccent),
-                                      SizedBox(width: 4),
-                                      Text('Mandiri Sync', style: TextStyle(color: Colors.white, fontSize: 11)),
-                                    ],
-                                  ),
-                                ),
-                            ],
+                    InkWell(
+                      borderRadius: BorderRadius.circular(22),
+                      onTap: () async {
+                        await Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()));
+                        _loadData();
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(22),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF6C63FF), Color(0xFF9C95FF)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _formatCurrency(_totalBalance),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
+                          borderRadius: BorderRadius.circular(22),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF6C63FF).withOpacity(0.3),
+                              blurRadius: 16,
+                              offset: const Offset(0, 8),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Total Saldo (Kas & Bank)',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.85),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(Icons.chevron_right, size: 16, color: Colors.white.withOpacity(0.7)),
+                                  ],
+                                ),
+                                if (_syncStatus.isConnected)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: const [
+                                        Icon(Icons.check_circle, size: 12, color: Colors.greenAccent),
+                                        SizedBox(width: 4),
+                                        Text('Mandiri Sync', style: TextStyle(color: Colors.white, fontSize: 11)),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _formatCurrency(_totalBalance),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 30,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            // Breakdown: Rekening Bank vs Kas Brankas
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.18),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(0.15),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(Icons.account_balance, size: 16, color: Colors.white),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Rekening Bank',
+                                                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                _formatCurrency(_bankBalance),
+                                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 1,
+                                    height: 32,
+                                    color: Colors.white.withOpacity(0.2),
+                                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                                  ),
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(0.15),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(Icons.payments, size: 16, color: Colors.white),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Kas Fisik / Brankas',
+                                                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                _formatCurrency(_cashBalance),
+                                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -484,7 +604,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ],
                           ),
                         );
-                      }).toList(),
+                      }),
                   ],
                 ),
               ),

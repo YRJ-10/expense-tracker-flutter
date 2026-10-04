@@ -184,11 +184,68 @@ class FirestoreService {
     final docRef = _db.collection('debts').doc();
     data['id'] = docRef.id;
     data['created_at'] = DateTime.now().toIso8601String();
+    if (!data.containsKey('remaining_amount')) {
+      data['remaining_amount'] = data['amount'];
+    }
+    if (!data.containsKey('paid_amount')) {
+      data['paid_amount'] = 0.0;
+    }
     await docRef.set(data);
   }
 
   static Future<void> updateDebt(String debtId, Map<String, dynamic> data) async {
     await _db.collection('debts').doc(debtId).set(data, SetOptions(merge: true));
+  }
+
+  static Future<void> payDebt({
+    required String debtId,
+    required String userId,
+    required double paymentAmount,
+    required String? walletId,
+    required String personName,
+    required String debtType,
+    String? note,
+  }) async {
+    final debtDoc = await _db.collection('debts').doc(debtId).get();
+    if (!debtDoc.exists) return;
+
+    final debtData = debtDoc.data()!;
+    final double originalTotal = (debtData['amount'] as num?)?.toDouble() ?? 0.0;
+    final double currentRemaining = (debtData['remaining_amount'] as num?)?.toDouble() ?? 
+        (debtData['is_paid'] == true ? 0.0 : originalTotal);
+    final double currentPaid = (debtData['paid_amount'] as num?)?.toDouble() ?? 0.0;
+
+    final double newRemaining = (currentRemaining - paymentAmount).clamp(0.0, double.infinity);
+    final double newPaid = currentPaid + paymentAmount;
+    final bool isPaid = newRemaining <= 0;
+
+    await _db.collection('debts').doc(debtId).set({
+      'remaining_amount': newRemaining,
+      'paid_amount': newPaid,
+      'is_paid': isPaid,
+      'last_payment_date': DateTime.now().toIso8601String(),
+    }, SetOptions(merge: true));
+
+    final bool isBorrowed = debtType == 'borrowed';
+    final txType = isBorrowed ? 'expense' : 'income';
+    final desc = (note != null && note.trim().isNotEmpty)
+        ? note.trim()
+        : (isBorrowed ? 'Bayar Cicilan: $personName' : 'Penerimaan Piutang: $personName');
+
+    await addTransaction({
+      'user_id': userId,
+      'wallet_id': walletId,
+      'amount': paymentAmount,
+      'type': txType,
+      'category': isBorrowed ? 'Bayar Utang' : 'Piutang',
+      'category_id': isBorrowed ? 'cat_debt_pay' : 'cat_debt_rec',
+      'note': desc,
+      'description': desc,
+      'debt_id': debtId,
+      'date': DateTime.now().toIso8601String().split('T')[0],
+      'transaction_date': DateTime.now().toIso8601String(),
+      'source': 'MANUAL_DEBT_PAYMENT',
+    });
   }
 
   static Future<void> deleteDebt(String debtId) async {

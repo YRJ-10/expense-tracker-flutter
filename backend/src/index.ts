@@ -169,8 +169,29 @@ export default {
         const gmail = new GmailClient(env);
         const accessToken = await gmail.refreshAccessToken(integration.refresh_token);
 
-        // Cari email notifikasi dari Mandiri / bank lainnya
-        const messageIds = await gmail.listBankMessages(accessToken, body.query || 'from:bankmandiri.co.id');
+        // Cari email notifikasi dari Mandiri / bank lainnya yang terjadi setelah saldo awal dibuat
+        const wallets = await firestore.queryCollection('wallets', 'user_id', 'EQUAL', userId);
+        let afterDateFilter = '';
+        if (wallets.length > 0) {
+          let earliestDate: Date | null = null;
+          for (const w of wallets) {
+            if (w.data.created_at) {
+              const d = new Date(w.data.created_at);
+              if (!earliestDate || d < earliestDate) earliestDate = d;
+            }
+          }
+          if (earliestDate) {
+            // Mundurkan 1 hari untuk toleransi timezone
+            const tolerDate = new Date(earliestDate.getTime() - 24 * 60 * 60 * 1000);
+            const y = tolerDate.getFullYear();
+            const m = String(tolerDate.getMonth() + 1).padStart(2, '0');
+            const d = String(tolerDate.getDate()).padStart(2, '0');
+            afterDateFilter = ` after:${y}/${m}/${d}`;
+          }
+        }
+
+        const searchQuery = body.query || `from:bankmandiri.co.id${afterDateFilter}`;
+        const messageIds = await gmail.listBankMessages(accessToken, searchQuery);
         const parserRegistry = new ParserRegistry();
 
         let newCount = 0;

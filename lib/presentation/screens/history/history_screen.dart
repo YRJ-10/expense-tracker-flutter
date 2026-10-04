@@ -69,6 +69,196 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _loadTransactions();
   }
 
+  void _showEditTransactionModal(Map<String, dynamic> t) {
+    final descController = TextEditingController(text: t['description'] ?? t['note'] ?? '');
+    final noteController = TextEditingController(text: t['note'] ?? '');
+    String selectedCategory = t['category'] ?? 'Lainnya';
+    final double amount = (t['amount'] as num?)?.toDouble() ?? 0.0;
+    final bool isIncome = t['type'] == 'income';
+    final bool isAutoSynced = t['is_auto_synced'] == true;
+    final String? bank = t['bank_name'];
+
+    final List<String> categories = isIncome
+        ? ['Gaji', 'Bonus', 'Investasi', 'Transfer Masuk', 'Penyesuaian Manual', 'Lainnya']
+        : ['Makanan', 'Transportasi', 'Belanja', 'Tagihan', 'Kartu Kredit / Utang', 'Hiburan', 'Kesehatan', 'Penyesuaian Manual', 'Lainnya'];
+
+    if (!categories.contains(selectedCategory)) {
+      categories.insert(0, selectedCategory);
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Detail & Edit Transaksi', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white54),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F0F1A),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                isIncome ? Icons.arrow_downward : Icons.arrow_upward,
+                                color: isIncome ? Colors.greenAccent : Colors.redAccent,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                isIncome ? 'Pemasukan' : 'Pengeluaran',
+                                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                              ),
+                              if (isAutoSynced) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF6C63FF).withOpacity(0.25),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    bank ?? 'Mandiri Auto',
+                                    style: const TextStyle(color: Color(0xFF9C95FF), fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          Text(
+                            '${isIncome ? '+' : '-'}${_formatCurrency(amount)}',
+                            style: TextStyle(
+                              color: isIncome ? Colors.greenAccent : Colors.redAccent,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: descController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Keterangan / Merchant',
+                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: const Color(0xFF0F0F1A),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text('Kategori', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      dropdownColor: const Color(0xFF0F0F1A),
+                      value: selectedCategory,
+                      items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(color: Colors.white)))).toList(),
+                      onChanged: (val) => setModalState(() => selectedCategory = val ?? selectedCategory),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFF0F0F1A),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: noteController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Catatan Tambahan (Opsional)',
+                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: const Color(0xFF0F0F1A),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            Navigator.pop(context);
+                            _deleteTransaction(t['id']);
+                          },
+                          icon: const Icon(Icons.delete, size: 16, color: Colors.redAccent),
+                          label: const Text('Hapus', style: TextStyle(color: Colors.redAccent)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.redAccent),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final newDesc = descController.text.trim();
+                              final newNote = noteController.text.trim();
+                              await FirestoreService.updateTransaction(t['id'], {
+                                'description': newDesc.isNotEmpty ? newDesc : t['description'],
+                                'category': selectedCategory,
+                                'note': newNote,
+                              });
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Perubahan transaksi disimpan!'), backgroundColor: Colors.green),
+                                );
+                                _loadTransactions();
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF6C63FF),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: const Text('Simpan Perubahan', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _changeMonth(int increment) {
     setState(() {
       _selectedDate = DateTime(_selectedDate.year, _selectedDate.month + increment, 1);
@@ -192,98 +382,102 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 child: const Icon(Icons.delete, color: Colors.white),
                               ),
                               onDismissed: (_) => _deleteTransaction(t['id']),
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1A1A2E),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: isAutoSynced
-                                        ? const Color(0xFF6C63FF).withOpacity(0.3)
-                                        : Colors.white.withOpacity(0.05),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () => _showEditTransactionModal(t),
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1A1A2E),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: isAutoSynced
+                                          ? const Color(0xFF6C63FF).withOpacity(0.3)
+                                          : Colors.white.withOpacity(0.05),
+                                    ),
                                   ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: (isIncome ? Colors.green : Colors.red).withOpacity(0.15),
-                                        borderRadius: BorderRadius.circular(12),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: (isIncome ? Colors.green : Colors.red).withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Icon(
+                                          isIncome ? Icons.arrow_downward : Icons.arrow_upward,
+                                          color: isIncome ? Colors.greenAccent : Colors.redAccent,
+                                          size: 20,
+                                        ),
                                       ),
-                                      child: Icon(
-                                        isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-                                        color: isIncome ? Colors.greenAccent : Colors.redAccent,
-                                        size: 20,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            desc,
-                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
-                                          ),
-                                          const SizedBox(height: 3),
-                                          Row(
-                                            children: [
-                                              Text(
-                                                categoryName,
-                                                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
-                                              ),
-                                              if (isAutoSynced) ...[
-                                                const SizedBox(width: 6),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(0xFF6C63FF).withOpacity(0.25),
-                                                    borderRadius: BorderRadius.circular(4),
-                                                  ),
-                                                  child: Text(
-                                                    bank ?? 'Auto Sync',
-                                                    style: const TextStyle(color: Color(0xFF9C95FF), fontSize: 10, fontWeight: FontWeight.bold),
-                                                  ),
-                                                ),
-                                              ],
-                                              if (isRecon) ...[
-                                                const SizedBox(width: 6),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.blue.withOpacity(0.25),
-                                                    borderRadius: BorderRadius.circular(4),
-                                                  ),
-                                                  child: const Text(
-                                                    'Rekonsiliasi',
-                                                    style: TextStyle(color: Colors.blueAccent, fontSize: 10, fontWeight: FontWeight.bold),
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                          if (displayDate.isNotEmpty)
-                                            Padding(
-                                              padding: const EdgeInsets.only(top: 2),
-                                              child: Text(
-                                                displayDate,
-                                                style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11),
-                                              ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              desc,
+                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
                                             ),
-                                        ],
+                                            const SizedBox(height: 3),
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  categoryName,
+                                                  style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+                                                ),
+                                                if (isAutoSynced) ...[
+                                                  const SizedBox(width: 6),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFF6C63FF).withOpacity(0.25),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: Text(
+                                                      bank ?? 'Auto Sync',
+                                                      style: const TextStyle(color: Color(0xFF9C95FF), fontSize: 10, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ),
+                                                ],
+                                                if (isRecon) ...[
+                                                  const SizedBox(width: 6),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.blue.withOpacity(0.25),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: const Text(
+                                                      'Rekonsiliasi',
+                                                      style: TextStyle(color: Colors.blueAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                            if (displayDate.isNotEmpty)
+                                              Padding(
+                                                padding: const EdgeInsets.only(top: 2),
+                                                child: Text(
+                                                  displayDate,
+                                                  style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                    Text(
-                                      '${isIncome ? '+' : '-'}${_formatCurrency(amount)}',
-                                      style: TextStyle(
-                                        color: isIncome ? Colors.greenAccent : Colors.redAccent,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
+                                      Text(
+                                        '${isIncome ? '+' : '-'}${_formatCurrency(amount)}',
+                                        style: TextStyle(
+                                          color: isIncome ? Colors.greenAccent : Colors.redAccent,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             );

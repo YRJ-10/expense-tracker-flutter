@@ -20,10 +20,10 @@ class _WalletScreenState extends State<WalletScreen> {
 
   final List<Map<String, String>> _supportedBanks = [
     {'name': 'Bank Mandiri (Livin\')', 'code': 'MANDIRI', 'icon': '🏦'},
+    {'name': 'Kas Fisik / Brankas / Tunai', 'code': 'CASH', 'icon': '💵'},
     {'name': 'Bank Central Asia (BCA)', 'code': 'BCA', 'icon': '🏛️'},
     {'name': 'Bank Rakyat Indonesia (BRI)', 'code': 'BRI', 'icon': '🏢'},
     {'name': 'Bank Jago', 'code': 'JAGO', 'icon': '💳'},
-    {'name': 'Tunai / Cash', 'code': 'CASH', 'icon': '💵'},
     {'name': 'E-Wallet (GoPay/OVO/ShopeePay)', 'code': 'EWALLET', 'icon': '📱'},
   ];
 
@@ -252,7 +252,7 @@ class _WalletScreenState extends State<WalletScreen> {
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: 'Nama Rekening / Label',
-                        hintText: 'Misal: Mandiri Tabungan Utama',
+                        hintText: selectedBankCode == 'CASH' ? 'Misal: Kas Brankas / Kas Dompet' : 'Misal: Mandiri Tabungan Utama',
                         hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
                         labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
@@ -263,11 +263,11 @@ class _WalletScreenState extends State<WalletScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: accNumberController,
-                      keyboardType: TextInputType.number,
+                      keyboardType: selectedBankCode == 'CASH' ? TextInputType.text : TextInputType.number,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        labelText: '4 Digit Terakhir No. Rekening (Opsional)',
-                        hintText: 'Contoh: 0182 (sesuai email bank)',
+                        labelText: selectedBankCode == 'CASH' ? 'Lokasi / Keterangan (Opsional)' : '4 Digit Terakhir No. Rekening (Opsional)',
+                        hintText: selectedBankCode == 'CASH' ? 'Misal: Brankas Kamar Utama' : 'Contoh: 0182 (sesuai email bank)',
                         hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
                         labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
@@ -285,7 +285,9 @@ class _WalletScreenState extends State<WalletScreen> {
                       ],
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        labelText: 'Saldo Awal (Sesuai M-Banking)',
+                        labelText: selectedBankCode == 'CASH' ? 'Saldo Awal (Kas Fisik / Brankas)' : 'Saldo Awal (Sesuai M-Banking)',
+                        hintText: selectedBankCode == 'CASH' ? 'Contoh: 100.000.000' : 'Contoh: 1.000.000.000',
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
                         labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
                         fillColor: const Color(0xFF0F0F1A),
@@ -324,7 +326,10 @@ class _WalletScreenState extends State<WalletScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('Simpan Rekening', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: Text(
+                          selectedBankCode == 'CASH' ? 'Simpan Kas Tunai' : 'Simpan Rekening',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -342,6 +347,7 @@ class _WalletScreenState extends State<WalletScreen> {
     final actualBalanceController = TextEditingController();
     final noteController = TextEditingController();
     final double currentAppBal = (wallet['balance'] as num?)?.toDouble() ?? 0.0;
+    final bool isCash = (wallet['bank_name'] ?? '').toString().toUpperCase() == 'CASH';
 
     showModalBottomSheet(
       context: context,
@@ -374,14 +380,16 @@ class _WalletScreenState extends State<WalletScreen> {
                         const Icon(Icons.sync_alt, color: Color(0xFF6C63FF)),
                         const SizedBox(width: 8),
                         Text(
-                          'Rekonsiliasi: ${wallet['name']}',
+                          isCash ? 'Hitung Kas: ${wallet['name']}' : 'Rekonsiliasi: ${wallet['name']}',
                           style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Cocokkan saldo aplikasi dengan saldo aktual di m-banking Anda.',
+                      isCash
+                          ? 'Hitung uang fisik di brankas/dompet Anda dan cocokkan dengan saldo di aplikasi.'
+                          : 'Cocokkan saldo aplikasi dengan saldo aktual di m-banking Anda.',
                       style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13),
                     ),
                     const SizedBox(height: 16),
@@ -409,7 +417,7 @@ class _WalletScreenState extends State<WalletScreen> {
                       ],
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        labelText: 'Saldo Aktual di M-Banking',
+                        labelText: isCash ? 'Saldo Riil di Brankas / Kas' : 'Saldo Aktual di M-Banking',
                         labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
                         fillColor: const Color(0xFF0F0F1A),
@@ -655,7 +663,7 @@ class _WalletScreenState extends State<WalletScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Daftar Rekening Bank',
+                        'Daftar Rekening & Kas Tunai',
                         style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       TextButton.icon(
@@ -734,6 +742,11 @@ class _WalletScreenState extends State<WalletScreen> {
                                         Text(
                                           'No. Rek: ****$accNum ($bankName)',
                                           style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                                        )
+                                      else if (bankName.toUpperCase() == 'CASH')
+                                        Text(
+                                          'Kas Fisik / Brankas Tunai',
+                                          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
                                         ),
                                     ],
                                   ),
@@ -772,7 +785,7 @@ class _WalletScreenState extends State<WalletScreen> {
                           ],
                         ),
                       );
-                    }).toList(),
+                    }),
                 ],
               ),
             ),

@@ -85,7 +85,15 @@ export class MandiriLivinParser implements BankEmailParser {
       // Kategori Default
       let category = type === 'income' ? 'Pemasukan' : 'Lainnya';
       const lowerDesc = description.toLowerCase();
-      if (/shopee|tokopedia|lazada|blibli|tiktok|grab|gojek|gofood|shopeepay/i.test(lowerDesc)) {
+      const lowerBody = htmlOrText.toLowerCase();
+
+      if (/kartu kredit|credit card|pembayaran cc|mandiri cc|tagihan cc/i.test(lowerDesc) ||
+          /kartu kredit|credit card|tagihan kartu kredit/i.test(lowerBody)) {
+        category = 'Kartu Kredit';
+        if (description === 'Transaksi Mandiri' || description.toLowerCase().includes('pembayaran')) {
+          description = 'Pembayaran Kartu Kredit';
+        }
+      } else if (/shopee|tokopedia|lazada|blibli|tiktok|grab|gojek|gofood|shopeepay/i.test(lowerDesc)) {
         category = 'Belanja';
       } else if (/makan|resto|cafe|kopi|bakso|food/i.test(lowerDesc)) {
         category = 'Makanan';

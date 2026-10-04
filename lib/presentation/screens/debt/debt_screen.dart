@@ -12,15 +12,16 @@ class DebtScreen extends StatefulWidget {
 
 class _DebtScreenState extends State<DebtScreen> {
   List<Map<String, dynamic>> _debts = [];
+  List<Map<String, dynamic>> _wallets = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadDebts();
+    _loadData();
   }
 
-  Future<void> _loadDebts() async {
+  Future<void> _loadData() async {
     setState(() => _isLoading = true);
     final userId = FirestoreService.currentUserId;
     if (userId == null) {
@@ -29,9 +30,11 @@ class _DebtScreenState extends State<DebtScreen> {
     }
     try {
       final debts = await FirestoreService.getDebts(userId);
+      final wallets = await FirestoreService.getWallets(userId);
       if (mounted) {
         setState(() {
           _debts = debts;
+          _wallets = wallets;
           _isLoading = false;
         });
       }
@@ -40,10 +43,15 @@ class _DebtScreenState extends State<DebtScreen> {
     }
   }
 
+  String _formatCurrency(double amount) {
+    return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
+  }
+
+  // ---------------- MODAL TAMBAH UTANG/PIUTANG ----------------
   void _showAddDebtModal() {
     final nameController = TextEditingController();
     final amountController = TextEditingController();
-    String type = 'borrowed'; // or 'lent'
+    String type = 'borrowed'; // 'borrowed' (Utang) atau 'lent' (Piutang)
 
     showModalBottomSheet(
       context: context,
@@ -60,91 +68,140 @@ class _DebtScreenState extends State<DebtScreen> {
                 right: 24,
                 top: 24,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Catat Utang/Piutang', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: RadioListTile<String>(
-                          title: const Text('Utang', style: TextStyle(color: Colors.white, fontSize: 14)),
-                          value: 'borrowed',
-                          groupValue: type,
-                          activeColor: const Color(0xFF6C63FF),
-                          onChanged: (val) => setStateModal(() => type = val!),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Catat Utang / Piutang Baru', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setStateModal(() => type = 'borrowed'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: type == 'borrowed' ? Colors.redAccent.withOpacity(0.2) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: type == 'borrowed' ? Colors.redAccent : Colors.white24),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.arrow_upward, size: 16, color: type == 'borrowed' ? Colors.redAccent : Colors.white60),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Utang Saya',
+                                    style: TextStyle(
+                                      color: type == 'borrowed' ? Colors.redAccent : Colors.white60,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                      Expanded(
-                        child: RadioListTile<String>(
-                          title: const Text('Piutang', style: TextStyle(color: Colors.white, fontSize: 14)),
-                          value: 'lent',
-                          groupValue: type,
-                          activeColor: const Color(0xFF6C63FF),
-                          onChanged: (val) => setStateModal(() => type = val!),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setStateModal(() => type = 'lent'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: type == 'lent' ? Colors.blueAccent.withOpacity(0.2) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: type == 'lent' ? Colors.blueAccent : Colors.white24),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.arrow_downward, size: 16, color: type == 'lent' ? Colors.blueAccent : Colors.white60),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Piutang',
+                                    style: TextStyle(
+                                      color: type == 'lent' ? Colors.blueAccent : Colors.white60,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: nameController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Nama Pihak / Akun',
+                        hintText: type == 'borrowed' ? 'Misal: Kartu Kredit Mandiri / Budi' : 'Misal: Budi Pinjam',
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: const Color(0xFF0F0F1A),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: nameController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Nama Orang / Pihak',
-                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                      filled: true,
-                      fillColor: const Color(0xFF0F0F1A),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: amountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      ThousandsSeparatorInputFormatter(),
-                    ],
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Jumlah (Rp)',
-                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                      filled: true,
-                      fillColor: const Color(0xFF0F0F1A),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        if (nameController.text.isNotEmpty && amountController.text.isNotEmpty) {
-                          final userId = FirestoreService.currentUserId;
-                          if (userId == null) return;
-                          await FirestoreService.addDebt({
-                            'user_id': userId,
-                            'person_name': nameController.text.trim(),
-                            'amount': double.tryParse(amountController.text.replaceAll('.', '')) ?? 0,
-                            'type': type,
-                            'is_paid': false,
-                          });
-                          if (context.mounted) Navigator.pop(context);
-                          _loadDebts();
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6C63FF),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        ThousandsSeparatorInputFormatter(),
+                      ],
+                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      decoration: InputDecoration(
+                        labelText: 'Total Tagihan / Utang Awal',
+                        prefixText: 'Rp ',
+                        prefixStyle: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: const Color(0xFF0F0F1A),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
-                      child: const Text('Simpan Data', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final name = nameController.text.trim();
+                          final rawAmt = amountController.text.replaceAll('.', '');
+                          final totalAmt = double.tryParse(rawAmt) ?? 0.0;
+                          if (name.isNotEmpty && totalAmt > 0) {
+                            final userId = FirestoreService.currentUserId;
+                            if (userId == null) return;
+                            await FirestoreService.addDebt({
+                              'user_id': userId,
+                              'person_name': name,
+                              'amount': totalAmt,
+                              'remaining_amount': totalAmt,
+                              'paid_amount': 0.0,
+                              'type': type,
+                              'is_paid': false,
+                            });
+                            if (context.mounted) Navigator.pop(context);
+                            _loadData();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6C63FF),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Simpan Data Utang', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
             );
           },
@@ -153,17 +210,387 @@ class _DebtScreenState extends State<DebtScreen> {
     );
   }
 
-  Future<void> _markAsPaid(String id) async {
-    await FirestoreService.updateDebt(id, {'is_paid': true});
-    _loadDebts();
+  // ---------------- MODAL CICIL / BAYAR UTANG ----------------
+  void _showPayDebtModal(Map<String, dynamic> debt) {
+    final double totalAmt = (debt['amount'] as num?)?.toDouble() ?? 0.0;
+    final double remainingAmt = (debt['remaining_amount'] as num?)?.toDouble() ?? 
+        (debt['is_paid'] == true ? 0.0 : totalAmt);
+    final String personName = debt['person_name'] ?? 'Utang';
+    final String debtType = debt['type'] ?? 'borrowed';
+    final bool isBorrowed = debtType == 'borrowed';
+
+    final payAmountController = TextEditingController();
+    final noteController = TextEditingController();
+    String? selectedWalletId = _wallets.isNotEmpty ? _wallets.first['id'] : null;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final rawInput = payAmountController.text.replaceAll('.', '');
+            final double payVal = double.tryParse(rawInput) ?? 0.0;
+            final double sisaSetelahBayar = (remainingAmt - payVal).clamp(0.0, double.infinity);
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(isBorrowed ? Icons.payment : Icons.account_balance_wallet, color: const Color(0xFF6C63FF)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            isBorrowed ? 'Bayar Cicilan: $personName' : 'Penerimaan Piutang: $personName',
+                            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Sisa tagihan saat ini: ${_formatCurrency(remainingAmt)}',
+                      style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: payAmountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        ThousandsSeparatorInputFormatter(),
+                      ],
+                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                      decoration: InputDecoration(
+                        labelText: 'Nominal yang Dibayar (Rp)',
+                        prefixText: 'Rp ',
+                        prefixStyle: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: const Color(0xFF0F0F1A),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                      onChanged: (_) => setModalState(() {}),
+                    ),
+                    const SizedBox(height: 12),
+                    // Quick button bayar lunas
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          payAmountController.text = remainingAmt.toStringAsFixed(0).replaceAllMapped(
+                              RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
+                          setModalState(() {});
+                        },
+                        icon: const Icon(Icons.done_all, size: 16, color: Color(0xFF6C63FF)),
+                        label: const Text('Bayar Lunas Sekaligus', style: TextStyle(color: Color(0xFF6C63FF), fontSize: 12)),
+                      ),
+                    ),
+                    if (_wallets.isNotEmpty) ...[
+                      const Text('Sumber Rekening / Dompet', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        dropdownColor: const Color(0xFF0F0F1A),
+                        value: selectedWalletId,
+                        items: _wallets.map((w) {
+                          return DropdownMenuItem<String>(
+                            value: w['id'],
+                            child: Text('${w['icon'] ?? '🏦'} ${w['name']}', style: const TextStyle(color: Colors.white)),
+                          );
+                        }).toList(),
+                        onChanged: (val) => setModalState(() => selectedWalletId = val),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: const Color(0xFF0F0F1A),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                    TextField(
+                      controller: noteController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Catatan (Opsional)',
+                        hintText: 'Misal: Cicilan ke-1 lewat Livin / Kas',
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: const Color(0xFF0F0F1A),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (payVal > 0) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F0F1A),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Sisa Tagihan Nanti:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                            Text(
+                              _formatCurrency(sisaSetelahBayar),
+                              style: TextStyle(
+                                color: sisaSetelahBayar == 0 ? Colors.greenAccent : Colors.orangeAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          if (payVal <= 0) return;
+                          final userId = FirestoreService.currentUserId;
+                          if (userId == null) return;
+
+                          await FirestoreService.payDebt(
+                            debtId: debt['id'],
+                            userId: userId,
+                            paymentAmount: payVal,
+                            walletId: selectedWalletId,
+                            personName: personName,
+                            debtType: debtType,
+                            note: noteController.text.trim().isNotEmpty ? noteController.text.trim() : null,
+                          );
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Pembayaran ${_formatCurrency(payVal)} berhasil dicatat!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                            _loadData();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6C63FF),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Konfirmasi Pembayaran', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
-  String _formatCurrency(double amount) {
-    return 'Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
+  // ---------------- MODAL EDIT / PENYESUAIAN UTANG (FALLBACK PELAPIS) ----------------
+  void _showEditDebtModal(Map<String, dynamic> debt) {
+    final double totalAmt = (debt['amount'] as num?)?.toDouble() ?? 0.0;
+    final double remainingAmt = (debt['remaining_amount'] as num?)?.toDouble() ?? 
+        (debt['is_paid'] == true ? 0.0 : totalAmt);
+
+    final nameController = TextEditingController(text: debt['person_name'] ?? '');
+    final remainingController = TextEditingController(
+      text: remainingAmt.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.'),
+    );
+    final totalController = TextEditingController(
+      text: totalAmt.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.'),
+    );
+    bool isPaid = debt['is_paid'] == true || remainingAmt <= 0;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.tune, color: Color(0xFF6C63FF)),
+                        SizedBox(width: 8),
+                        Text(
+                          'Penyesuaian Manual (Fallback)',
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Koreksi langsung angka utang jika terjadi ketidaksesuaian tanpa memotong saldo rekening.',
+                      style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: nameController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Nama Pihak / Akun',
+                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: const Color(0xFF0F0F1A),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: remainingController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        ThousandsSeparatorInputFormatter(),
+                      ],
+                      style: const TextStyle(color: Colors.orangeAccent, fontSize: 18, fontWeight: FontWeight.bold),
+                      decoration: InputDecoration(
+                        labelText: 'Sisa Utang Riil Saat Ini (Rp)',
+                        prefixText: 'Rp ',
+                        prefixStyle: const TextStyle(color: Colors.orangeAccent, fontSize: 18, fontWeight: FontWeight.bold),
+                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: const Color(0xFF0F0F1A),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                      onChanged: (val) {
+                        final parsed = double.tryParse(val.replaceAll('.', '')) ?? 0.0;
+                        setModalState(() {
+                          isPaid = parsed <= 0;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: totalController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        ThousandsSeparatorInputFormatter(),
+                      ],
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Total Plafon / Utang Awal (Rp)',
+                        prefixText: 'Rp ',
+                        prefixStyle: const TextStyle(color: Colors.white),
+                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: const Color(0xFF0F0F1A),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Status Lunas', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      value: isPaid,
+                      activeColor: Colors.greenAccent,
+                      onChanged: (val) {
+                        setModalState(() {
+                          isPaid = val;
+                          if (val) remainingController.text = '0';
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final newName = nameController.text.trim();
+                          final newRem = double.tryParse(remainingController.text.replaceAll('.', '')) ?? 0.0;
+                          final newTot = double.tryParse(totalController.text.replaceAll('.', '')) ?? totalAmt;
+                          final newPaid = (newTot - newRem).clamp(0.0, double.infinity);
+
+                          await FirestoreService.updateDebt(debt['id'], {
+                            'person_name': newName.isNotEmpty ? newName : debt['person_name'],
+                            'amount': newTot,
+                            'remaining_amount': newRem,
+                            'paid_amount': newPaid,
+                            'is_paid': isPaid || newRem <= 0,
+                            'updated_at': DateTime.now().toIso8601String(),
+                          });
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Penyesuaian utang berhasil disimpan!'), backgroundColor: Colors.green),
+                            );
+                            _loadData();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6C63FF),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Simpan Penyesuaian', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Hitung total akumulasi utang dan piutang
+    double totalBorrowedRemaining = 0;
+    double totalLentRemaining = 0;
+
+    for (var d in _debts) {
+      final double total = (d['amount'] as num?)?.toDouble() ?? 0.0;
+      final double rem = (d['remaining_amount'] as num?)?.toDouble() ?? 
+          (d['is_paid'] == true ? 0.0 : total);
+      if (d['is_paid'] != true && rem > 0) {
+        if (d['type'] == 'borrowed') {
+          totalBorrowedRemaining += rem;
+        } else {
+          totalLentRemaining += rem;
+        }
+      }
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F1A),
       appBar: AppBar(
@@ -173,95 +600,283 @@ class _DebtScreenState extends State<DebtScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
-          : ListView.builder(
-              padding: const EdgeInsets.all(24),
-              itemCount: _debts.length + 1,
-              itemBuilder: (context, index) {
-                if (index == _debts.length) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: ElevatedButton.icon(
-                      onPressed: _showAddDebtModal,
-                      icon: const Icon(Icons.add, color: Colors.white),
-                      label: const Text('Catat Utang/Piutang Baru', style: TextStyle(color: Colors.white)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1A1A2E),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              child: ListView(
+                padding: const EdgeInsets.all(24),
+                children: [
+                  // 1. Ringkasan Utang & Piutang
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A1A2E),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.arrow_upward, size: 14, color: Colors.redAccent),
+                                  const SizedBox(width: 4),
+                                  Text('Total Utang Saya', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11)),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _formatCurrency(totalBorrowedRemaining),
+                                style: const TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  );
-                }
-                final debt = _debts[index];
-                final bool isPaid = debt['is_paid'] == true;
-                final bool isBorrowed = debt['type'] == 'borrowed';
-                final amount = (debt['amount'] as num?)?.toDouble() ?? 0.0;
-
-                return Dismissible(
-                  key: Key(debt['id'] ?? '$index'),
-                  direction: DismissDirection.endToStart,
-                  onDismissed: (_) {
-                    if (debt['id'] != null) FirestoreService.deleteDebt(debt['id']);
-                  },
-                  background: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(16)),
-                    child: const Icon(Icons.delete, color: Colors.white),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A1A2E),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.arrow_downward, size: 14, color: Colors.blueAccent),
+                                  const SizedBox(width: 4),
+                                  Text('Total Piutang Saya', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11)),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _formatCurrency(totalLentRemaining),
+                                style: const TextStyle(color: Colors.blueAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A2E),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: (isBorrowed ? Colors.redAccent : Colors.blueAccent).withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(8),
+                  const SizedBox(height: 20),
+
+                  // 2. Daftar Utang / Piutang
+                  if (_debts.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A1A2E),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.receipt_long_outlined, size: 48, color: Colors.white24),
+                          const SizedBox(height: 12),
+                          const Text('Belum ada data utang/piutang', style: TextStyle(color: Colors.white70)),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: _showAddDebtModal,
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Catat Utang / Piutang'),
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    ..._debts.map((debt) {
+                      final bool isBorrowed = debt['type'] == 'borrowed';
+                      final double total = (debt['amount'] as num?)?.toDouble() ?? 0.0;
+                      final double remaining = (debt['remaining_amount'] as num?)?.toDouble() ?? 
+                          (debt['is_paid'] == true ? 0.0 : total);
+                      final double paid = (debt['paid_amount'] as num?)?.toDouble() ?? (total - remaining);
+                      final bool isPaid = debt['is_paid'] == true || remaining <= 0;
+
+                      final double progress = total > 0 ? (paid / total).clamp(0.0, 1.0) : (isPaid ? 1.0 : 0.0);
+
+                      return Dismissible(
+                        key: Key(debt['id'] ?? UniqueKey().toString()),
+                        direction: DismissDirection.endToStart,
+                        onDismissed: (_) {
+                          if (debt['id'] != null) FirestoreService.deleteDebt(debt['id']);
+                        },
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(16)),
+                          child: const Icon(Icons.delete, color: Colors.white),
+                        ),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A1A2E),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: isPaid
+                                  ? Colors.green.withOpacity(0.3)
+                                  : (isBorrowed ? Colors.redAccent.withOpacity(0.2) : Colors.blueAccent.withOpacity(0.2)),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Header Item
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: (isBorrowed ? Colors.redAccent : Colors.blueAccent).withOpacity(0.18),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          isBorrowed ? 'Utang' : 'Piutang',
+                                          style: TextStyle(
+                                            color: isBorrowed ? Colors.redAccent : Colors.blueAccent,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        debt['person_name'] ?? 'Akun',
+                                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
                                   ),
-                                  child: Text(
-                                    isBorrowed ? 'Utang' : 'Piutang',
-                                    style: TextStyle(
-                                      color: isBorrowed ? Colors.redAccent : Colors.blueAccent,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isPaid ? Colors.green.withOpacity(0.15) : Colors.orange.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      isPaid ? 'Lunas' : 'Belum Lunas',
+                                      style: TextStyle(
+                                        color: isPaid ? Colors.greenAccent : Colors.orangeAccent,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(debt['person_name'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(_formatCurrency(amount), style: const TextStyle(color: Colors.white70, fontSize: 14)),
-                          ],
-                        ),
-                        isPaid
-                            ? const Text('Lunas', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold))
-                            : OutlinedButton(
-                                onPressed: () => _markAsPaid(debt['id']),
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: Color(0xFF6C63FF)),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                child: const Text('Tandai Lunas', style: TextStyle(color: Color(0xFF6C63FF))),
+                                ],
                               ),
-                      ],
+                              const SizedBox(height: 14),
+
+                              // Progress Bar Pelunasan
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: LinearProgressIndicator(
+                                  value: progress,
+                                  minHeight: 6,
+                                  backgroundColor: Colors.white.withOpacity(0.08),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    isPaid ? Colors.greenAccent : (isBorrowed ? const Color(0xFF6C63FF) : Colors.blueAccent),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Tiga Angka: Total, Sudah Dibayar, Sisa Tagihan
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Total Awal', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
+                                      const SizedBox(height: 2),
+                                      Text(_formatCurrency(total), style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                                    ],
+                                  ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Text('Terbayar', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
+                                      const SizedBox(height: 2),
+                                      Text(_formatCurrency(paid), style: const TextStyle(color: Colors.greenAccent, fontSize: 13)),
+                                    ],
+                                  ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text('Sisa Tagihan', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _formatCurrency(remaining),
+                                        style: TextStyle(
+                                          color: isPaid ? Colors.white54 : (isBorrowed ? Colors.redAccent : Colors.blueAccent),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              const Divider(color: Colors.white10, height: 24),
+
+                              // Action Buttons: Cicil / Bayar, Sesuaikan (Fallback)
+                              Row(
+                                children: [
+                                  if (!isPaid) ...[
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: () => _showPayDebtModal(debt),
+                                        icon: const Icon(Icons.payments, size: 16, color: Colors.white),
+                                        label: const Text('Cicil / Bayar', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF6C63FF),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          padding: const EdgeInsets.symmetric(vertical: 10),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  OutlinedButton.icon(
+                                    onPressed: () => _showEditDebtModal(debt),
+                                    icon: const Icon(Icons.tune, size: 15, color: Colors.white70),
+                                    label: const Text('Sesuaikan', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Colors.white24),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _showAddDebtModal,
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    label: const Text('Catat Utang/Piutang Baru', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1A1A2E),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                   ),
-                );
-              },
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
     );
   }

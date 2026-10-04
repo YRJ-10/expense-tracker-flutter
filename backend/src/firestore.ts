@@ -261,7 +261,20 @@ export class FirestoreClient {
     }
 
     const wallet = await this.findMatchingWallet(userId, tx.bank, tx.accountNumber);
-    const walletId = wallet ? wallet.id : 'default_wallet';
+    if (!wallet) {
+      console.log(`No matching wallet found for user ${userId}. Skipping.`);
+      return false;
+    }
+
+    // CUTOFF DATE: Jika transaksi terjadi SEBELUM tanggal saldo awal dibuat, buang/abaikan!
+    const walletCreatedAt = wallet.data.created_at ? new Date(wallet.data.created_at).getTime() : 0;
+    const txTime = new Date(tx.date).getTime();
+    if (txTime < walletCreatedAt) {
+      console.log(`Transaction ${tx.referenceId} date (${tx.date}) is before wallet initial balance date (${wallet.data.created_at}). Discarded.`);
+      return false;
+    }
+
+    const walletId = wallet.id;
     const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
     const txDoc = {
@@ -292,6 +305,42 @@ export class FirestoreClient {
         balance: newBalance,
         updated_at: new Date().toISOString(),
       });
+    }
+
+    // Auto-reduce Debt jika transaksi ini adalah pembayaran kartu kredit
+    if (tx.category === 'Kartu Kredit' || /kartu kredit|credit card/i.test(tx.description)) {
+      try {
+        const debts = await this.queryCollection('debts', 'user_id', 'EQUAL', userId);
+        const matchDebt = debts.find((d) => 
+          !d.data.is_paid && 
+          ((d.data.person_name || '').toLowerCase().includes('kartu kredit') ||
+           (d.data.person_name || '').toLowerCase().includes('credit card') ||
+           d.data.type === 'borrowed')
+        );
+        if (matchDebt) {
+          const originalAmt = (matchDebt.data.amount as number) || 0;
+          const currentRemaining = typeof matchDebt.data.remaining_amount === 'number'
+            ? matchDebt.data.remaining_amount
+            : originalAmt;
+          const currentPaid = (matchDebt.data.paid_amount as number) || 0;
+
+          const newRemaining = Math.max(0, currentRemaining - tx.amount);
+          const newPaid = currentPaid + tx.amount;
+          const isPaid = newRemaining <= 0;
+
+          await this.setDocument('debts', matchDebt.id, {
+            ...matchDebt.data,
+            remaining_amount: newRemaining,
+            paid_amount: newPaid,
+            is_paid: isPaid,
+            last_payment_date: tx.date,
+            updated_at: new Date().toISOString(),
+          });
+          console.log(`Auto-updated debt ${matchDebt.id}: remaining was ${currentRemaining}, now ${newRemaining}`);
+        }
+      } catch (err) {
+        console.error('Error auto-updating debt for credit card payment:', err);
+      }
     }
 
     return true;
