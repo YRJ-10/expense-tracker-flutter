@@ -402,6 +402,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildSectionTitle(String title) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 8),
+        child: Text(
+          title,
+          style: const TextStyle(
+            color: Color(0xFF6C63FF),
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -447,7 +465,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // Gmail Integration Status Tile
+                  // Section Integrasi
+                  _buildSectionTitle('INTEGRASI'),
                   ListTile(
                     onTap: () async {
                       await Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()));
@@ -463,8 +482,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     tileColor: const Color(0xFF1A1A2E),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
 
+                  // Section Perulangan
+                  _buildSectionTitle('PERULANGAN'),
                   ListTile(
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const RecurringScreen())),
                     leading: const Icon(Icons.autorenew, color: Color(0xFF6C63FF)),
@@ -473,9 +494,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     tileColor: const Color(0xFF1A1A2E),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
 
-                  // Pengaturan Keamanan Biometrik
+                  // Section Keamanan
+                  _buildSectionTitle('KEAMANAN'),
                   Container(
                     decoration: BoxDecoration(
                       color: const Color(0xFF1A1A2E),
@@ -522,9 +544,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
 
-                  // Pengaturan Notifikasi & Pengingat Cerdas
+                  // Section Notifikasi
+                  _buildSectionTitle('NOTIFIKASI'),
                   Container(
                     decoration: BoxDecoration(
                       color: const Color(0xFF1A1A2E),
@@ -689,9 +712,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
-                  // Form
+                  // Section Info Akun
+                  _buildSectionTitle('INFO AKUN'),
                   TextField(
                     controller: _nameController,
                     style: const TextStyle(color: Colors.white),
