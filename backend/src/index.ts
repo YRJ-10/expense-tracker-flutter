@@ -363,6 +363,127 @@ export default {
         );
       }
 
+      // 6. API Scan Receipt via Gemini Flash AI (Gemini 3.8 Flash)
+      if (path === '/api/scan-receipt' && request.method === 'POST') {
+        if (!env.GEMINI_API_KEY) {
+          return new Response(JSON.stringify({ error: 'GEMINI_API_KEY belum dikonfigurasi di server.' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const body = (await request.json()) as { imageBase64: string; mimeType?: string };
+        if (!body.imageBase64) {
+          return new Response(JSON.stringify({ error: 'imageBase64 wajib disertakan.' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const mimeType = body.mimeType || 'image/jpeg';
+        const cleanBase64 = body.imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+
+        const promptText = `Kamu adalah asisten keuangan cerdas. Ekstrak informasi dari struk/kuitansi/nota belanja ini ke dalam format JSON murni tanpa markdown/backticks.
+Field yang wajib diekstrak:
+- merchant: Nama toko/restoran/penyedia jasa (contoh: 'Indomaret', 'Kopi Kenangan', 'SPBU Pertamina', dll)
+- amount: Total nominal pembayaran akhir (angka positif bulat tanpa simbol Rp atau titik desimal, e.g. 52000)
+- date: Tanggal transaksi dalam format ISO YYYY-MM-DD (jika tahun tidak tertera, gunakan tahun ${new Date().getFullYear()})
+- category: Kategori paling cocok dari pilihan berikut: ['Makanan & Minuman', 'Belanja', 'Transportasi', 'Tagihan', 'Hiburan', 'Kesehatan', 'Pendidikan', 'Lainnya']
+- items_summary: Ringkasan singkat 2-5 item yang dibeli (contoh: 'Kopi Susu, Roti Tawar')
+
+Format output WAJIB JSON persis seperti ini:
+{
+  "merchant": "...",
+  "amount": 0,
+  "date": "YYYY-MM-DD",
+  "category": "...",
+  "items_summary": "..."
+}`;
+
+        const payload = {
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: mimeType,
+                    data: cleanBase64,
+                  },
+                },
+                {
+                  text: promptText,
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: 'application/json',
+          },
+        };
+
+        // Waterfall fallback: Dari model tertinggi (3.8 Flash) bertahap ke Flash-Lite (kuota 500/hari)
+        const candidateModels = [
+          'gemini-3.8-flash',
+          'gemini-3.5-flash-lite',
+          'gemini-3.1-flash-lite',
+          'gemini-2.5-flash',
+        ];
+
+        let geminiData: any = null;
+        let lastErrorText = '';
+
+        for (const model of candidateModels) {
+          try {
+            const res = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              }
+            );
+
+            if (res.ok) {
+              geminiData = await res.json();
+              break;
+            } else {
+              lastErrorText = await res.text();
+              console.warn(`Model ${model} gagal (${res.status}): ${lastErrorText}. Mencoba model cadangan...`);
+            }
+          } catch (e: any) {
+            lastErrorText = e.message;
+            console.warn(`Model ${model} error: ${e.message}. Mencoba model cadangan...`);
+          }
+        }
+
+        if (!geminiData) {
+          throw new Error(`Semua model Gemini gagal: ${lastErrorText}`);
+        }
+
+        const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!rawText) {
+          throw new Error('Gagal mengekstrak data dari gambar struk.');
+        }
+
+        let parsedJson;
+        try {
+          parsedJson = JSON.parse(rawText);
+        } catch (_) {
+          const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+          parsedJson = JSON.parse(cleaned);
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: parsedJson,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       return new Response('Not Found', { status: 404 });
     } catch (err: any) {
       console.error('Worker request error:', err);

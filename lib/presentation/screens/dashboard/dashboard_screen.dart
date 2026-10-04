@@ -132,6 +132,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _syncStatus = syncStatus;
         _isLoading = false;
       });
+
+      FirestoreService.checkUpcomingDueDates(userId);
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }

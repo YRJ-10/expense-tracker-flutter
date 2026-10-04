@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 import 'package:expense_tracker_flutter/data/services/gmail_sync_service.dart';
 import 'package:expense_tracker_flutter/data/services/biometric_service.dart';
+import 'package:expense_tracker_flutter/data/services/notification_service.dart';
 import 'package:expense_tracker_flutter/presentation/screens/recurring/recurring_screen.dart';
 import 'package:expense_tracker_flutter/presentation/screens/wallet/wallet_screen.dart';
 
@@ -25,6 +26,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isBiometricSupported = false;
   bool _isBiometricEnabled = false;
   bool _allowPinFallback = true;
+  bool _cashReminderEnabled = true;
+  bool _budgetAlertEnabled = true;
+  bool _dueDateAlertEnabled = true;
 
   @override
   void initState() {
@@ -48,6 +52,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isBioSupported = await BiometricService.isBiometricSupported();
     final isBioEnabled = await BiometricService.isBiometricEnabled();
     final allowPin = await BiometricService.isPinFallbackAllowed();
+    final cashReminder = await NotificationService.isCashReminderEnabled();
+    final budgetAlert = await NotificationService.isBudgetAlertEnabled();
+    final dueDateAlert = await NotificationService.isDueDateAlertEnabled();
 
     if (mounted) {
       setState(() {
@@ -59,6 +66,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isBiometricSupported = isBioSupported;
         _isBiometricEnabled = isBioEnabled;
         _allowPinFallback = allowPin;
+        _cashReminderEnabled = cashReminder;
+        _budgetAlertEnabled = budgetAlert;
+        _dueDateAlertEnabled = dueDateAlert;
         _isLoading = false;
       });
     }
@@ -108,6 +118,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await BiometricService.setPinFallbackAllowed(allow);
     if (mounted) {
       setState(() => _allowPinFallback = allow);
+    }
+  }
+
+  Future<void> _toggleCashReminder(bool allow) async {
+    await NotificationService.setCashReminderEnabled(allow);
+    if (mounted) {
+      setState(() => _cashReminderEnabled = allow);
+    }
+  }
+
+  Future<void> _toggleBudgetAlert(bool allow) async {
+    await NotificationService.setBudgetAlertEnabled(allow);
+    if (mounted) {
+      setState(() => _budgetAlertEnabled = allow);
+    }
+  }
+
+  Future<void> _toggleDueDateAlert(bool allow) async {
+    await NotificationService.setDueDateAlertEnabled(allow);
+    if (mounted) {
+      setState(() => _dueDateAlertEnabled = allow);
     }
   }
 
@@ -299,6 +330,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onChanged: (val) => _togglePinFallback(val),
                           ),
                         ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Pengaturan Notifikasi & Pengingat Cerdas
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A2E),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        SwitchListTile(
+                          secondary: const Icon(Icons.notifications_active_outlined, color: Color(0xFF6C63FF)),
+                          title: const Text(
+                            'Pengingat Tunai Malam (20:30)',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: const Text(
+                            'Ingatkan catat transaksi tunai/cash setiap malam',
+                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                          value: _cashReminderEnabled,
+                          activeThumbColor: const Color(0xFF6C63FF),
+                          onChanged: (val) => _toggleCashReminder(val),
+                        ),
+                        const Divider(color: Colors.white10, height: 1),
+                        SwitchListTile(
+                          secondary: const Icon(Icons.warning_amber_rounded, color: Colors.amberAccent),
+                          title: const Text(
+                            'Peringatan Batas Anggaran',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: const Text(
+                            'Notifikasi saat pengeluaran mencapai 80% atau overbudget',
+                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                          value: _budgetAlertEnabled,
+                          activeThumbColor: const Color(0xFF6C63FF),
+                          onChanged: (val) => _toggleBudgetAlert(val),
+                        ),
+                        const Divider(color: Colors.white10, height: 1),
+                        SwitchListTile(
+                          secondary: const Icon(Icons.alarm, color: Colors.cyanAccent),
+                          title: const Text(
+                            'Pengingat Jatuh Tempo',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: const Text(
+                            'Pemberitahuan H-1 sebelum utang atau tagihan jatuh tempo',
+                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                          value: _dueDateAlertEnabled,
+                          activeThumbColor: const Color(0xFF6C63FF),
+                          onChanged: (val) => _toggleDueDateAlert(val),
+                        ),
                       ],
                     ),
                   ),

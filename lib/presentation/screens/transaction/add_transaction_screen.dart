@@ -1,6 +1,8 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
+import 'package:expense_tracker_flutter/data/services/receipt_scanner_service.dart';
 
 class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
   @override
@@ -32,6 +34,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String? _selectedCategoryId;
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
+  bool _isScanningReceipt = false;
 
   String? _selectedWalletId;
   List<Map<String, dynamic>> _wallets = [];
@@ -166,6 +169,166 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
   }
 
+  Future<void> _showScanReceiptOptions() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.auto_awesome, color: Color(0xFF6C63FF), size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Scan Struk dengan Gemini AI',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'AI akan membaca nominal, tanggal, nama toko, dan kategori secara otomatis.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13),
+                ),
+                const SizedBox(height: 24),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6C63FF).withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.camera_alt, color: Color(0xFF6C63FF)),
+                  ),
+                  title: const Text('Foto Struk (Kamera)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Ambil foto struk belanja sekarang', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _scanReceipt(true);
+                  },
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6C63FF).withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.photo_library, color: Color(0xFF6C63FF)),
+                  ),
+                  title: const Text('Pilih dari Galeri', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Pilih foto struk atau screenshot', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _scanReceipt(false);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _scanReceipt(bool fromCamera) async {
+    setState(() => _isScanningReceipt = true);
+
+    try {
+      final result = fromCamera
+          ? await ReceiptScannerService.scanFromCamera()
+          : await ReceiptScannerService.scanFromGallery();
+
+      if (!mounted) return;
+
+      if (result != null) {
+        final amountInt = result.amount.toInt();
+        final formattedAmount = NumberFormat.currency(
+          locale: 'id_ID',
+          symbol: '',
+          decimalDigits: 0,
+        ).format(amountInt).trim();
+
+        _amountController.text = formattedAmount;
+        _type = 'expense';
+
+        final desc = result.itemsSummary.isNotEmpty
+            ? '${result.merchant} (${result.itemsSummary})'
+            : result.merchant;
+        _noteController.text = desc;
+
+        final parsedDate = DateTime.tryParse(result.date);
+        if (parsedDate != null) {
+          _selectedDate = parsedDate;
+        }
+
+        // Cocokkan kategori pengeluaran
+        final lower = result.category.toLowerCase();
+        for (final cat in _defaultExpenseCategories) {
+          final catName = (cat['name'] as String).toLowerCase();
+          if (catName.contains(lower) || lower.contains(catName)) {
+            _selectedCategoryId = cat['id'];
+            break;
+          }
+        }
+
+        setState(() {});
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Struk ${result.merchant} (Rp $formattedAmount) berhasil diekstrak AI!'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal scan struk: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isScanningReceipt = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -178,12 +341,86 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.document_scanner_outlined, color: Color(0xFF6C63FF)),
+            tooltip: 'Scan Struk AI',
+            onPressed: _isLoading || _isScanningReceipt ? null : _showScanReceiptOptions,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Banner AI Scan Struk
+            Container(
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF6C63FF).withValues(alpha: 0.18),
+                    const Color(0xFF1A1A2E),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFF6C63FF).withValues(alpha: 0.35),
+                ),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: _isLoading || _isScanningReceipt ? null : _showScanReceiptOptions,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6C63FF).withValues(alpha: 0.25),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.auto_awesome, color: Color(0xFF6C63FF), size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Scan Struk Otomatis (Gemini AI)',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Foto nota/kuitansi untuk mengisi form otomatis',
+                                style: TextStyle(color: Colors.white54, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_isScanningReceipt)
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6C63FF)),
+                          )
+                        else
+                          const Icon(Icons.camera_alt_outlined, color: Color(0xFF6C63FF), size: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(

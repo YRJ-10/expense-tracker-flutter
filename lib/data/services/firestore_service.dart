@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:expense_tracker_flutter/data/services/notification_service.dart';
 
 class FirestoreService {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -89,6 +90,16 @@ class FirestoreService {
         final currentBal = (walletDoc.data()?['balance'] as num?)?.toDouble() ?? 0.0;
         final newBal = type == 'income' ? (currentBal + amount) : (currentBal - amount);
         await _db.collection('wallets').doc(walletId).update({'balance': newBal});
+      }
+    }
+
+    // Peringatan otomatis jika pengeluaran mendekati atau melebihi limit anggaran
+    if (type == 'expense') {
+      final userId = data['user_id']?.toString() ?? currentUserId;
+      final category = data['category']?.toString();
+      final categoryId = data['category_id']?.toString();
+      if (userId != null && category != null) {
+        checkBudgetLimit(userId, category, categoryId: categoryId);
       }
     }
 
@@ -353,5 +364,77 @@ class FirestoreService {
 
   static Future<void> deleteRecurring(String id) async {
     await _db.collection('recurring_transactions').doc(id).delete();
+  }
+
+  // ------------------ BUDGET & DUE DATE ALERTS ------------------
+  static Future<void> checkBudgetLimit(String userId, String categoryName, {String? categoryId}) async {
+    try {
+      final budgets = await getBudgets(userId);
+      final budget = budgets.firstWhere(
+        (b) =>
+            (b['category']?.toString().toLowerCase() == categoryName.toLowerCase()) ||
+            (categoryId != null && b['category_id']?.toString() == categoryId),
+        orElse: () => {},
+      );
+      if (budget.isEmpty) return;
+
+      final limit = (budget['amount'] as num?)?.toDouble() ?? 0.0;
+      if (limit <= 0) return;
+
+      final now = DateTime.now();
+      final txs = await getTransactions(userId);
+      double spentThisMonth = 0.0;
+      for (final tx in txs) {
+        if (tx['type'] == 'expense' &&
+            (tx['category']?.toString().toLowerCase() == categoryName.toLowerCase() ||
+                (categoryId != null && tx['category_id']?.toString() == categoryId))) {
+          final dStr = tx['transaction_date'] ?? tx['date'];
+          if (dStr != null) {
+            final d = DateTime.tryParse(dStr.toString());
+            if (d != null && d.year == now.year && d.month == now.month) {
+              spentThisMonth += (tx['amount'] as num?)?.toDouble() ?? 0.0;
+            }
+          }
+        }
+      }
+
+      final percentage = (spentThisMonth / limit) * 100;
+      if (percentage >= 80) {
+        await NotificationService.showBudgetWarning(
+          category: categoryName,
+          spent: spentThisMonth,
+          limit: limit,
+          percentage: percentage,
+        );
+      }
+    } catch (_) {}
+  }
+
+  static Future<void> checkUpcomingDueDates(String userId) async {
+    try {
+      final debts = await getDebts(userId);
+      final today = DateTime.now();
+      for (final debt in debts) {
+        if (debt['is_paid'] == true) continue;
+        final dueStr = debt['due_date']?.toString();
+        if (dueStr != null) {
+          final dueDate = DateTime.tryParse(dueStr);
+          if (dueDate != null) {
+            final diff = dueDate.difference(DateTime(today.year, today.month, today.day)).inDays;
+            if (diff >= 0 && diff <= 1) {
+              final person = debt['person_name']?.toString() ?? 'Seseorang';
+              final amount = (debt['remaining_amount'] as num?)?.toDouble() ?? 0.0;
+              final isBorrowed = debt['type'] == 'borrowed';
+              await NotificationService.showDueDateAlert(
+                title: isBorrowed ? 'Bayar Utang' : 'Tagih Piutang',
+                personOrName: person,
+                amount: amount,
+                dueDate: diff == 0 ? 'Hari ini' : 'Besok',
+              );
+            }
+          }
+        }
+      }
+    } catch (_) {}
   }
 }

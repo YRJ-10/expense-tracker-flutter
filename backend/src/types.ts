@@ -5,6 +5,7 @@ export interface Env {
   FIREBASE_CLIENT_EMAIL: string;
   FIREBASE_PRIVATE_KEY: string;
   WORKER_AUTH_TOKEN?: string;
+  GEMINI_API_KEY?: string;
   ENVIRONMENT?: string;
 }
 
