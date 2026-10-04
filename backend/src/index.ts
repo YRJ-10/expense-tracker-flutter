@@ -20,6 +20,24 @@ export default {
     }
 
     try {
+      // Helper untuk validasi API Secret Bearer Token
+      const isAuthorized = (): boolean => {
+        const authHeader = request.headers.get('Authorization') || '';
+        const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+        const validToken = env.WORKER_AUTH_TOKEN;
+        return !!validToken && token.length > 0 && token === validToken;
+      };
+
+      // 0. Security Guard: Gembok semua endpoint /api/* dengan Bearer Auth
+      if (path.startsWith('/api/')) {
+        if (!isAuthorized()) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized: Akses ditolak. Kunci otentikasi tidak valid.' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
       // 1. Health Check
       if (path === '/' || path === '/health') {
         return new Response(
@@ -144,7 +162,7 @@ export default {
 
       // 4. API Sync: Trigger sinkronisasi email dan update transaksi
       if (path === '/api/sync' && request.method === 'POST') {
-        const body = (await request.json()) as { userId: string; query?: string };
+        const body = (await request.json()) as { userId: string };
         const userId = body.userId;
         if (!userId) {
           return new Response(JSON.stringify({ error: 'userId is required' }), {
@@ -190,7 +208,8 @@ export default {
           }
         }
 
-        const searchQuery = body.query || `from:bankmandiri.co.id${afterDateFilter}`;
+        // Hardcode server-side: hanya email resmi Bank Mandiri
+        const searchQuery = `from:bankmandiri.co.id${afterDateFilter}`;
         const messageIds = await gmail.listBankMessages(accessToken, searchQuery);
         const parserRegistry = new ParserRegistry();
 
@@ -291,6 +310,14 @@ export default {
         if (!wallet) {
           return new Response(JSON.stringify({ error: 'Wallet not found' }), {
             status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Ownership Check: Pastikan wallet yang direkonsiliasi adalah milik userId pemanggil
+        if (wallet.user_id !== userId) {
+          return new Response(JSON.stringify({ error: 'Forbidden: Rekening bukan milik user ini' }), {
+            status: 403,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }

@@ -6,3 +6,4 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 # Non-sensitive variables can be set here or in dashboard
 ENVIRONMENT = "production"
+WORKER_AUTH_TOKEN = "YOUR_WORKER_AUTH_TOKEN"

@@ -36,6 +36,7 @@ class GmailSyncStatus {
 
 class GmailSyncService {
   static const String baseUrl = 'https://YOUR-WORKER-SUBDOMAIN.workers.dev';
+  static const String apiToken = 'YOUR_WORKER_AUTH_TOKEN';
 
   // 1. Buka halaman otorisasi OAuth Gmail
   static Future<bool> connectGmail(String userId) async {
@@ -60,7 +61,12 @@ class GmailSyncService {
   // 2. Ambil status integrasi saat ini
   static Future<GmailSyncStatus> getStatus(String userId) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/api/status?userId=$userId'));
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/status?userId=$userId'),
+        headers: {
+          'Authorization': 'Bearer $apiToken',
+        },
+      );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         return GmailSyncStatus(
@@ -82,10 +88,12 @@ class GmailSyncService {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/sync'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $apiToken',
+        },
         body: jsonEncode({
           'userId': userId,
-          if (query != null) 'query': query,
         }),
       );
 
@@ -121,7 +129,10 @@ class GmailSyncService {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/api/reconcile'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $apiToken',
+        },
         body: jsonEncode({
           'userId': userId,
           'walletId': walletId,
