@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 import 'package:expense_tracker_flutter/data/services/gmail_sync_service.dart';
+import 'package:expense_tracker_flutter/data/services/biometric_service.dart';
 import 'package:expense_tracker_flutter/presentation/screens/recurring/recurring_screen.dart';
 import 'package:expense_tracker_flutter/presentation/screens/wallet/wallet_screen.dart';
 
@@ -21,6 +22,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _email = '';
   String? _photoUrl;
   GmailSyncStatus _syncStatus = GmailSyncStatus(isConnected: false);
+  bool _isBiometricSupported = false;
+  bool _isBiometricEnabled = false;
+  bool _allowPinFallback = true;
 
   @override
   void initState() {
@@ -41,6 +45,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final profile = await FirestoreService.getProfile(user.uid);
     final syncStatus = await GmailSyncService.getStatus(user.uid);
+    final isBioSupported = await BiometricService.isBiometricSupported();
+    final isBioEnabled = await BiometricService.isBiometricEnabled();
+    final allowPin = await BiometricService.isPinFallbackAllowed();
 
     if (mounted) {
       setState(() {
@@ -49,8 +56,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _emailController.text = user.email ?? '';
         _photoUrl = user.photoURL ?? profile?['photo_url'];
         _syncStatus = syncStatus;
+        _isBiometricSupported = isBioSupported;
+        _isBiometricEnabled = isBioEnabled;
+        _allowPinFallback = allowPin;
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _toggleBiometric(bool enable) async {
+    if (enable) {
+      final success = await BiometricService.authenticate(
+        reason: 'Pindai sidik jari Anda untuk mengaktifkan kunci biometrik',
+        biometricOnly: true,
+      );
+      if (success) {
+        await BiometricService.setBiometricEnabled(true);
+        if (mounted) {
+          setState(() => _isBiometricEnabled = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Kunci sidik jari berhasil diaktifkan!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Verifikasi sidik jari dibatalkan atau tidak cocok.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    } else {
+      await BiometricService.setBiometricEnabled(false);
+      if (mounted) {
+        setState(() => _isBiometricEnabled = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kunci sidik jari dinonaktifkan.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _togglePinFallback(bool allow) async {
+    await BiometricService.setPinFallbackAllowed(allow);
+    if (mounted) {
+      setState(() => _allowPinFallback = allow);
     }
   }
 
@@ -195,6 +252,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     trailing: const Icon(Icons.chevron_right, color: Colors.white54),
                     tileColor: const Color(0xFF1A1A2E),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Pengaturan Keamanan Biometrik
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A2E),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        SwitchListTile(
+                          secondary: const Icon(Icons.fingerprint, color: Color(0xFF6C63FF)),
+                          title: const Text(
+                            'Kunci Sidik Jari',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            _isBiometricSupported
+                                ? (_isBiometricEnabled ? 'Aktif (Kunci saat buka aplikasi)' : 'Nonaktif')
+                                : 'Perangkat tidak mendukung biometrik',
+                            style: TextStyle(
+                              color: _isBiometricEnabled ? Colors.greenAccent : Colors.white54,
+                              fontSize: 12,
+                            ),
+                          ),
+                          value: _isBiometricEnabled,
+                          activeThumbColor: const Color(0xFF6C63FF),
+                          onChanged: _isBiometricSupported ? (val) => _toggleBiometric(val) : null,
+                        ),
+                        if (_isBiometricEnabled) ...[
+                          const Divider(color: Colors.white10, height: 1),
+                          SwitchListTile(
+                            secondary: const Icon(Icons.lock_outline, color: Colors.white54),
+                            title: const Text(
+                              'Cadangan PIN / Pola Layar',
+                              style: TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                            subtitle: const Text(
+                              'Izinkan PIN HP jika sensor sidik jari kotor/gagal',
+                              style: TextStyle(color: Colors.white54, fontSize: 12),
+                            ),
+                            value: _allowPinFallback,
+                            activeThumbColor: const Color(0xFF6C63FF),
+                            onChanged: (val) => _togglePinFallback(val),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 24),
 

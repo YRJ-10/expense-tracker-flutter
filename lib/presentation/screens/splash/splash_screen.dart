@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:expense_tracker_flutter/data/services/biometric_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -25,8 +26,13 @@ class _SplashScreenState extends State<SplashScreen> {
     final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
 
     if (user != null) {
-      // Sudah login → langsung ke home
-      Navigator.pushReplacementNamed(context, '/home');
+      final isBioEnabled = await BiometricService.isBiometricEnabled();
+      if (!mounted) return;
+      if (isBioEnabled) {
+        Navigator.pushReplacementNamed(context, '/biometric-lock');
+      } else {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
     } else if (hasSeenOnboarding) {
       // Pernah login/onboarding tapi sudah logout → ke login
       Navigator.pushReplacementNamed(context, '/login');
