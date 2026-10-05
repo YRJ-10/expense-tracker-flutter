@@ -30,16 +30,20 @@ class NotificationService {
     try {
       final timezoneInfo = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(timezoneInfo.identifier));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Notification timezone init failed: $e');
+    }
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidSettings);
 
     await _notificationsPlugin.initialize(initSettings);
 
     // Minta izin notifikasi dan izin exact alarm di Android
-    final androidPlatform = _notificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final androidPlatform =
+        _notificationsPlugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
     await androidPlatform?.requestNotificationsPermission();
     await androidPlatform?.requestExactAlarmsPermission();
 
@@ -160,7 +164,8 @@ class NotificationService {
       // Tagihan rutin bulanan (misal kartu kredit / cicilan)
       final lastDayThisMonth = DateTime(now.year, now.month + 1, 0).day;
       final targetDayThisMonth = recurringDay.clamp(1, lastDayThisMonth);
-      final dueThisMonth = DateTime(now.year, now.month, targetDayThisMonth, 23, 59, 59);
+      final dueThisMonth =
+          DateTime(now.year, now.month, targetDayThisMonth, 23, 59, 59);
 
       // Jika jatuh tempo bulan ini belum lewat dan belum lunas
       if (dueThisMonth.isAfter(now) && !isPaid) {
@@ -195,7 +200,8 @@ class NotificationService {
       const androidDetails = AndroidNotificationDetails(
         'cash_reminder_channel',
         'Pengingat Transaksi Tunai',
-        channelDescription: 'Mengingatkan untuk mencatat pengeluaran tunai setiap malam',
+        channelDescription:
+            'Mengingatkan untuk mencatat pengeluaran tunai setiap malam',
         importance: Importance.high,
         priority: Priority.high,
       );
@@ -218,12 +224,15 @@ class NotificationService {
       await _scheduleNotificationSafe(
         id: 1001,
         title: 'Pengingat Pengeluaran Tunai 💵',
-        body: 'Ada transaksi tunai atau jajan hari ini yang belum dicatat di aplikasi?',
+        body:
+            'Ada transaksi tunai atau jajan hari ini yang belum dicatat di aplikasi?',
         scheduledDate: scheduledDate,
         details: const NotificationDetails(android: androidDetails),
         matchDateTimeComponents: DateTimeComponents.time,
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('scheduleDailyCashReminder failed: $e');
+    }
   }
 
   static Future<void> _scheduleNotificationSafe({
@@ -246,7 +255,8 @@ class NotificationService {
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: matchDateTimeComponents,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Exact notification schedule failed for $id: $e');
       try {
         await _notificationsPlugin.zonedSchedule(
           id,
@@ -259,8 +269,86 @@ class NotificationService {
               UILocalNotificationDateInterpretation.absoluteTime,
           matchDateTimeComponents: matchDateTimeComponents,
         );
-      } catch (_) {}
+      } catch (fallbackError) {
+        debugPrint(
+            'Inexact notification schedule failed for $id: $fallbackError');
+      }
     }
+  }
+
+  static Future<void> scheduleCashReminderTestInTwoMinutes() async {
+    const androidDetails = AndroidNotificationDetails(
+      'cash_reminder_channel',
+      'Pengingat Transaksi Tunai',
+      channelDescription:
+          'Mengingatkan untuk mencatat pengeluaran tunai setiap malam',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    final scheduledDate =
+        tz.TZDateTime.now(tz.local).add(const Duration(minutes: 2));
+    await _scheduleNotificationSafe(
+      id: 1002,
+      title: 'Tes Pengingat Transaksi Tunai',
+      body: 'Ini tes jalur yang sama dengan pengingat tunai harian.',
+      scheduledDate: scheduledDate,
+      details: const NotificationDetails(android: androidDetails),
+    );
+  }
+
+  static Future<Map<String, dynamic>> getDiagnostics() async {
+    final pending = await _notificationsPlugin.pendingNotificationRequests();
+    final androidPlatform =
+        _notificationsPlugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    bool? exactAllowed;
+    try {
+      exactAllowed = await androidPlatform?.canScheduleExactNotifications();
+    } catch (e) {
+      debugPrint('Exact alarm diagnostic failed: $e');
+    }
+
+    String timezoneName = tz.local.name;
+    try {
+      final timezoneInfo = await FlutterTimezone.getLocalTimezone();
+      timezoneName = timezoneInfo.identifier;
+    } catch (e) {
+      debugPrint('Timezone diagnostic failed: $e');
+    }
+
+    final reminderTime = await getCashReminderTime();
+    final now = tz.TZDateTime.now(tz.local);
+    var nextCashReminder = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      reminderTime.hour,
+      reminderTime.minute,
+    );
+    if (nextCashReminder.isBefore(now)) {
+      nextCashReminder = nextCashReminder.add(const Duration(days: 1));
+    }
+
+    return {
+      'timezone': timezoneName,
+      'localNow': now.toString(),
+      'cashReminderEnabled': await isCashReminderEnabled(),
+      'cashReminderTime':
+          '${reminderTime.hour.toString().padLeft(2, '0')}:${reminderTime.minute.toString().padLeft(2, '0')}',
+      'nextCashReminder': nextCashReminder.toString(),
+      'exactAlarmAllowed': exactAllowed,
+      'pendingCount': pending.length,
+      'pending': pending
+          .map((p) => {
+                'id': p.id,
+                'title': p.title ?? '',
+                'body': p.body ?? '',
+              })
+          .toList(),
+    };
   }
 
   // --- PERINGATAN ANGGARAN (BUDGET WARNING / OVERBUDGET) ---
@@ -272,12 +360,15 @@ class NotificationService {
   }) async {
     if (!await isBudgetAlertEnabled()) return;
 
-    final currencyFmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+    final currencyFmt =
+        NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     final spentStr = currencyFmt.format(spent);
     final limitStr = currencyFmt.format(limit);
 
     final bool isOver = percentage >= 100;
-    final title = isOver ? '⚠️ Peringatan Overbudget: $category' : '⚡ Mendekati Batas: $category';
+    final title = isOver
+        ? '⚠️ Peringatan Overbudget: $category'
+        : '⚡ Mendekati Batas: $category';
     final body = isOver
         ? 'Pengeluaran sudah mencapai $spentStr, melebihi limit anggaran $limitStr!'
         : 'Pengeluaran kategori $category sudah mencapai ${percentage.toStringAsFixed(0)}% dari limit $limitStr ($spentStr).';
@@ -285,7 +376,8 @@ class NotificationService {
     const androidDetails = AndroidNotificationDetails(
       'budget_alert_channel',
       'Peringatan Anggaran',
-      channelDescription: 'Pemberitahuan ketika pengeluaran mendekati atau melebihi batas anggaran',
+      channelDescription:
+          'Pemberitahuan ketika pengeluaran mendekati atau melebihi batas anggaran',
       importance: Importance.high,
       priority: Priority.high,
     );
@@ -307,13 +399,15 @@ class NotificationService {
   }) async {
     if (!await isDueDateAlertEnabled()) return;
 
-    final currencyFmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+    final currencyFmt =
+        NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     final amountStr = currencyFmt.format(amount);
 
     const androidDetails = AndroidNotificationDetails(
       'due_date_channel',
       'Pengingat Jatuh Tempo',
-      channelDescription: 'Pengingat untuk utang/piutang dan tagihan jatuh tempo',
+      channelDescription:
+          'Pengingat untuk utang/piutang dan tagihan jatuh tempo',
       importance: Importance.high,
       priority: Priority.high,
     );
@@ -346,11 +440,13 @@ class NotificationService {
         const NotificationDetails(android: androidDetails),
       );
     } else {
-      final scheduledDate = tz.TZDateTime.now(tz.local).add(Duration(seconds: delaySeconds));
+      final scheduledDate =
+          tz.TZDateTime.now(tz.local).add(Duration(seconds: delaySeconds));
       await _scheduleNotificationSafe(
         id: 9999,
         title: '⏰ Uji Notifikasi ($delaySeconds Detik)',
-        body: 'Alarm pengingat berjangka waktu berhasil diterima tepat pada waktunya!',
+        body:
+            'Alarm pengingat berjangka waktu berhasil diterima tepat pada waktunya!',
         scheduledDate: scheduledDate,
         details: const NotificationDetails(android: androidDetails),
       );

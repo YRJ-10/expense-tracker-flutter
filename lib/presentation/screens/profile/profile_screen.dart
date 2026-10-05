@@ -103,7 +103,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() => _cashReminderTime = picked);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Jam pengingat tunai diatur ke ${picked.format(context)}'),
+            content:
+                Text('Jam pengingat tunai diatur ke ${picked.format(context)}'),
             backgroundColor: const Color(0xFF6C63FF),
           ),
         );
@@ -132,7 +133,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A2E),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
@@ -144,7 +146,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Text(
                   'Pilih Waktu Pengingat Jatuh Tempo',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
               const SizedBox(height: 12),
@@ -157,12 +162,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: Text(
                     lbl,
                     style: TextStyle(
-                      color: isSelected ? const Color(0xFF6C63FF) : Colors.white,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color:
+                          isSelected ? const Color(0xFF6C63FF) : Colors.white,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
-                  trailing: isSelected ? const Icon(Icons.check_circle, color: Color(0xFF6C63FF)) : null,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  trailing: isSelected
+                      ? const Icon(Icons.check_circle, color: Color(0xFF6C63FF))
+                      : null,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
                   onTap: () async {
                     Navigator.pop(ctx);
                     await NotificationService.setDueDateOffsetHours(h);
@@ -189,7 +199,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A2E),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
@@ -201,7 +212,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Text(
                   '🧪 Uji Coba Notifikasi',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
               const Padding(
@@ -214,24 +228,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 12),
               ListTile(
                 leading: const Icon(Icons.flash_on, color: Colors.amberAccent),
-                title: const Text('Kirim Seketika (0 Detik)', style: TextStyle(color: Colors.white)),
-                subtitle: const Text('Notifikasi langsung muncul detik ini juga', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                title: const Text('Kirim Seketika (0 Detik)',
+                    style: TextStyle(color: Colors.white)),
+                subtitle: const Text(
+                    'Notifikasi langsung muncul detik ini juga',
+                    style: TextStyle(color: Colors.white38, fontSize: 11)),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  await NotificationService.showTestNotification(delaySeconds: 0);
+                  await NotificationService.showTestNotification(
+                      delaySeconds: 0);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.timer_outlined, color: Colors.cyanAccent),
-                title: const Text('Jadwalkan 10 Detik Lagi', style: TextStyle(color: Colors.white)),
-                subtitle: const Text('Kunci layar HP Anda sekarang untuk tes alarm saat layar mati', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                leading:
+                    const Icon(Icons.timer_outlined, color: Colors.cyanAccent),
+                title: const Text('Jadwalkan 10 Detik Lagi',
+                    style: TextStyle(color: Colors.white)),
+                subtitle: const Text(
+                    'Kunci layar HP Anda sekarang untuk tes alarm saat layar mati',
+                    style: TextStyle(color: Colors.white38, fontSize: 11)),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  await NotificationService.showTestNotification(delaySeconds: 10);
+                  await NotificationService.showTestNotification(
+                      delaySeconds: 10);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Alarm dijadwalkan dalam 10 detik! Coba kunci layar HP Anda.'),
+                        content: Text(
+                            'Alarm dijadwalkan dalam 10 detik! Coba kunci layar HP Anda.'),
                         backgroundColor: Color(0xFF6C63FF),
                         duration: Duration(seconds: 4),
                       ),
@@ -241,11 +265,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.schedule, color: Color(0xFF6C63FF)),
-                title: const Text('Jadwalkan 1 Menit Lagi', style: TextStyle(color: Colors.white)),
-                subtitle: const Text('Uji ketepatan alarm berjangka 60 detik', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                title: const Text('Jadwalkan 1 Menit Lagi',
+                    style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Uji ketepatan alarm berjangka 60 detik',
+                    style: TextStyle(color: Colors.white38, fontSize: 11)),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  await NotificationService.showTestNotification(delaySeconds: 60);
+                  await NotificationService.showTestNotification(
+                      delaySeconds: 60);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -256,10 +283,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   }
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.notifications_active_outlined,
+                    color: Colors.greenAccent),
+                title: const Text('Tes Pengingat Tunai 2 Menit',
+                    style: TextStyle(color: Colors.white)),
+                subtitle: const Text(
+                    'Memakai channel dan scheduler pengingat tunai harian',
+                    style: TextStyle(color: Colors.white38, fontSize: 11)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await NotificationService
+                      .scheduleCashReminderTestInTwoMinutes();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Tes pengingat tunai dijadwalkan 2 menit lagi.'),
+                        backgroundColor: Color(0xFF6C63FF),
+                      ),
+                    );
+                  }
+                },
+              ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Future<void> _showNotificationDiagnostics() async {
+    final data = await NotificationService.getDiagnostics();
+    if (!mounted) return;
+
+    final pending = (data['pending'] as List<dynamic>)
+        .map((p) => 'ID ${p['id']}: ${p['title']}')
+        .join('\n');
+    final message = [
+      'Zona waktu: ${data['timezone']}',
+      'Jam app: ${data['localNow']}',
+      'Pengingat tunai: ${data['cashReminderEnabled'] ? 'Aktif' : 'Nonaktif'} (${data['cashReminderTime']})',
+      'Jadwal tunai berikutnya: ${data['nextCashReminder']}',
+      'Exact alarm: ${data['exactAlarmAllowed'] == null ? 'Tidak terbaca' : (data['exactAlarmAllowed'] ? 'Diizinkan' : 'Tidak diizinkan')}',
+      'Pending notifikasi: ${data['pendingCount']}',
+      pending.isEmpty ? 'Tidak ada pending notification.' : pending,
+    ].join('\n\n');
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Text('Diagnosa Notifikasi',
+            style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            message,
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child:
+                const Text('Tutup', style: TextStyle(color: Color(0xFF6C63FF))),
+          ),
+        ],
+      ),
     );
   }
 
@@ -284,7 +374,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Verifikasi sidik jari dibatalkan atau tidak cocok.'),
+              content:
+                  Text('Verifikasi sidik jari dibatalkan atau tidak cocok.'),
               backgroundColor: Colors.redAccent,
             ),
           );
@@ -361,17 +452,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF1A1A2E),
-          title: const Text('Konfirmasi Logout', style: TextStyle(color: Colors.white)),
-          content: const Text('Apakah Anda yakin ingin keluar dari akun ini?', style: TextStyle(color: Colors.white70)),
+          title: const Text('Konfirmasi Logout',
+              style: TextStyle(color: Colors.white)),
+          content: const Text('Apakah Anda yakin ingin keluar dari akun ini?',
+              style: TextStyle(color: Colors.white70)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Batal', style: TextStyle(color: Colors.white54)),
+              child:
+                  const Text('Batal', style: TextStyle(color: Colors.white54)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-              child: const Text('Logout', style: TextStyle(color: Colors.white)),
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+              child:
+                  const Text('Logout', style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -430,7 +526,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Profil', style: TextStyle(color: Colors.white)),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -444,7 +541,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFF6C63FF),
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF6C63FF), width: 2),
+                      border:
+                          Border.all(color: const Color(0xFF6C63FF), width: 2),
                     ),
                     child: ClipOval(
                       child: _photoUrl != null && _photoUrl!.isNotEmpty
@@ -453,7 +551,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               width: 90,
                               height: 90,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _buildFallbackInitial(),
+                              errorBuilder: (_, __, ___) =>
+                                  _buildFallbackInitial(),
                             )
                           : _buildFallbackInitial(),
                     ),
@@ -461,7 +560,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 16),
                   Text(
                     _email,
-                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14),
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(0.5), fontSize: 14),
                   ),
                   const SizedBox(height: 32),
 
@@ -469,30 +569,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildSectionTitle('INTEGRASI'),
                   ListTile(
                     onTap: () async {
-                      await Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()));
+                      await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const WalletScreen()));
                       _loadProfile();
                     },
-                    leading: const Icon(Icons.account_balance, color: Color(0xFF6C63FF)),
-                    title: const Text('Integrasi Mbanking', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    leading: const Icon(Icons.account_balance,
+                        color: Color(0xFF6C63FF)),
+                    title: const Text('Integrasi Mbanking',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
                     subtitle: Text(
-                      _syncStatus.isConnected ? 'Terhubung (${_syncStatus.email})' : 'Belum Terhubung',
-                      style: TextStyle(color: _syncStatus.isConnected ? Colors.greenAccent : Colors.orangeAccent, fontSize: 12),
+                      _syncStatus.isConnected
+                          ? 'Terhubung (${_syncStatus.email})'
+                          : 'Belum Terhubung',
+                      style: TextStyle(
+                          color: _syncStatus.isConnected
+                              ? Colors.greenAccent
+                              : Colors.orangeAccent,
+                          fontSize: 12),
                     ),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+                    trailing:
+                        const Icon(Icons.chevron_right, color: Colors.white54),
                     tileColor: const Color(0xFF1A1A2E),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   const SizedBox(height: 16),
 
                   // Section Perulangan
                   _buildSectionTitle('PERULANGAN'),
                   ListTile(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const RecurringScreen())),
-                    leading: const Icon(Icons.autorenew, color: Color(0xFF6C63FF)),
-                    title: const Text('Transaksi Rutin', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const RecurringScreen())),
+                    leading:
+                        const Icon(Icons.autorenew, color: Color(0xFF6C63FF)),
+                    title: const Text('Transaksi Rutin',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
+                    trailing:
+                        const Icon(Icons.chevron_right, color: Colors.white54),
                     tileColor: const Color(0xFF1A1A2E),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   const SizedBox(height: 16),
 
@@ -506,35 +628,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       children: [
                         SwitchListTile(
-                          secondary: const Icon(Icons.fingerprint, color: Color(0xFF6C63FF)),
+                          secondary: const Icon(Icons.fingerprint,
+                              color: Color(0xFF6C63FF)),
                           title: const Text(
                             'Kunci Sidik Jari',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
                             _isBiometricSupported
-                                ? (_isBiometricEnabled ? 'Aktif (Kunci saat buka aplikasi)' : 'Nonaktif')
+                                ? (_isBiometricEnabled
+                                    ? 'Aktif (Kunci saat buka aplikasi)'
+                                    : 'Nonaktif')
                                 : 'Perangkat tidak mendukung biometrik',
                             style: TextStyle(
-                              color: _isBiometricEnabled ? Colors.greenAccent : Colors.white54,
+                              color: _isBiometricEnabled
+                                  ? Colors.greenAccent
+                                  : Colors.white54,
                               fontSize: 12,
                             ),
                           ),
                           value: _isBiometricEnabled,
                           activeThumbColor: const Color(0xFF6C63FF),
-                          onChanged: _isBiometricSupported ? (val) => _toggleBiometric(val) : null,
+                          onChanged: _isBiometricSupported
+                              ? (val) => _toggleBiometric(val)
+                              : null,
                         ),
                         if (_isBiometricEnabled) ...[
                           const Divider(color: Colors.white10, height: 1),
                           SwitchListTile(
-                            secondary: const Icon(Icons.lock_outline, color: Colors.white54),
+                            secondary: const Icon(Icons.lock_outline,
+                                color: Colors.white54),
                             title: const Text(
                               'Cadangan PIN / Pola Layar',
-                              style: TextStyle(color: Colors.white, fontSize: 14),
+                              style:
+                                  TextStyle(color: Colors.white, fontSize: 14),
                             ),
                             subtitle: const Text(
                               'Izinkan PIN HP jika sensor sidik jari kotor/gagal',
-                              style: TextStyle(color: Colors.white54, fontSize: 12),
+                              style: TextStyle(
+                                  color: Colors.white54, fontSize: 12),
                             ),
                             value: _allowPinFallback,
                             activeThumbColor: const Color(0xFF6C63FF),
@@ -556,14 +690,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       children: [
                         SwitchListTile(
-                          secondary: const Icon(Icons.notifications_active_outlined, color: Color(0xFF6C63FF)),
+                          secondary: const Icon(
+                              Icons.notifications_active_outlined,
+                              color: Color(0xFF6C63FF)),
                           title: const Text(
                             'Pengingat Transaksi Tunai',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
                             'Ingatkan catat pengeluaran tunai setiap ${_cashReminderTime.format(context)}',
-                            style: const TextStyle(color: Colors.white54, fontSize: 12),
+                            style: const TextStyle(
+                                color: Colors.white54, fontSize: 12),
                           ),
                           value: _cashReminderEnabled,
                           activeThumbColor: const Color(0xFF6C63FF),
@@ -576,25 +715,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               onTap: _pickCashReminderTime,
                               borderRadius: BorderRadius.circular(8),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 10),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF0F0F1A),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.4)),
+                                  border: Border.all(
+                                      color: const Color(0xFF6C63FF)
+                                          .withOpacity(0.4)),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.access_time, color: Color(0xFF6C63FF), size: 16),
+                                    const Icon(Icons.access_time,
+                                        color: Color(0xFF6C63FF), size: 16),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
                                         'Jam Pengingat: ${_cashReminderTime.format(context)}',
-                                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     const SizedBox(width: 6),
-                                    const Icon(Icons.edit, color: Colors.white54, size: 14),
+                                    const Icon(Icons.edit,
+                                        color: Colors.white54, size: 14),
                                   ],
                                 ),
                               ),
@@ -602,14 +749,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         const Divider(color: Colors.white10, height: 1),
                         SwitchListTile(
-                          secondary: const Icon(Icons.warning_amber_rounded, color: Colors.amberAccent),
+                          secondary: const Icon(Icons.warning_amber_rounded,
+                              color: Colors.amberAccent),
                           title: const Text(
                             'Peringatan Batas Anggaran',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
                             'Notifikasi saat pengeluaran mencapai ${_budgetAlertThreshold}% atau overbudget',
-                            style: const TextStyle(color: Colors.white54, fontSize: 12),
+                            style: const TextStyle(
+                                color: Colors.white54, fontSize: 12),
                           ),
                           value: _budgetAlertEnabled,
                           activeThumbColor: const Color(0xFF6C63FF),
@@ -622,15 +773,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       'Batas Ambang: ${_budgetAlertThreshold}%',
-                                      style: const TextStyle(color: Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                                      style: const TextStyle(
+                                          color: Colors.amberAccent,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold),
                                     ),
                                     Text(
                                       'Overbudget: 100%',
-                                      style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
+                                      style: TextStyle(
+                                          color: Colors.white.withOpacity(0.4),
+                                          fontSize: 11),
                                     ),
                                   ],
                                 ),
@@ -639,8 +796,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     activeTrackColor: Colors.amberAccent,
                                     inactiveTrackColor: Colors.white12,
                                     thumbColor: Colors.amberAccent,
-                                    overlayColor: Colors.amberAccent.withOpacity(0.2),
-                                    valueIndicatorColor: const Color(0xFF1A1A2E),
+                                    overlayColor:
+                                        Colors.amberAccent.withOpacity(0.2),
+                                    valueIndicatorColor:
+                                        const Color(0xFF1A1A2E),
                                   ),
                                   child: Slider(
                                     value: _budgetAlertThreshold.toDouble(),
@@ -648,7 +807,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     max: 95,
                                     divisions: 9,
                                     label: '$_budgetAlertThreshold%',
-                                    onChanged: (val) => _changeBudgetThreshold(val.round()),
+                                    onChanged: (val) =>
+                                        _changeBudgetThreshold(val.round()),
                                   ),
                                 ),
                               ],
@@ -656,14 +816,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         const Divider(color: Colors.white10, height: 1),
                         SwitchListTile(
-                          secondary: const Icon(Icons.alarm, color: Colors.cyanAccent),
+                          secondary:
+                              const Icon(Icons.alarm, color: Colors.cyanAccent),
                           title: const Text(
                             'Pengingat Jatuh Tempo',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
                             'Pemberitahuan ${NotificationService.getDueDateOffsetLabel(_dueDateOffsetHours)} sebelum jatuh tempo',
-                            style: const TextStyle(color: Colors.white54, fontSize: 12),
+                            style: const TextStyle(
+                                color: Colors.white54, fontSize: 12),
                           ),
                           value: _dueDateAlertEnabled,
                           activeThumbColor: const Color(0xFF6C63FF),
@@ -676,25 +840,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               onTap: _showDueDateOffsetPicker,
                               borderRadius: BorderRadius.circular(8),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 10),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF0F0F1A),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.cyanAccent.withOpacity(0.4)),
+                                  border: Border.all(
+                                      color:
+                                          Colors.cyanAccent.withOpacity(0.4)),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.timer_outlined, color: Colors.cyanAccent, size: 16),
+                                    const Icon(Icons.timer_outlined,
+                                        color: Colors.cyanAccent, size: 16),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
                                         'Waktu Pengingat: ${NotificationService.getDueDateOffsetLabel(_dueDateOffsetHours)}',
-                                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     const SizedBox(width: 6),
-                                    const Icon(Icons.arrow_drop_down, color: Colors.white54, size: 18),
+                                    const Icon(Icons.arrow_drop_down,
+                                        color: Colors.white54, size: 18),
                                   ],
                                 ),
                               ),
@@ -703,11 +875,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const Divider(color: Colors.white10, height: 1),
                         ListTile(
                           dense: true,
-                          leading: const Icon(Icons.science_outlined, color: Colors.purpleAccent, size: 20),
-                          title: const Text('Uji Notifikasi Perangkat', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                          subtitle: const Text('Tes langsung apakah banner notifikasi muncul di HP Anda', style: TextStyle(color: Colors.white54, fontSize: 11)),
-                          trailing: const Icon(Icons.chevron_right, color: Colors.white38, size: 18),
+                          leading: const Icon(Icons.science_outlined,
+                              color: Colors.purpleAccent, size: 20),
+                          title: const Text('Uji Notifikasi Perangkat',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold)),
+                          subtitle: const Text(
+                              'Tes langsung apakah banner notifikasi muncul di HP Anda',
+                              style: TextStyle(
+                                  color: Colors.white54, fontSize: 11)),
+                          trailing: const Icon(Icons.chevron_right,
+                              color: Colors.white38, size: 18),
                           onTap: _showTestNotificationSheet,
+                        ),
+                        const Divider(color: Colors.white10, height: 1),
+                        ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.manage_search,
+                              color: Colors.greenAccent, size: 20),
+                          title: const Text('Diagnosa Notifikasi',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold)),
+                          subtitle: const Text(
+                              'Cek timezone, exact alarm, dan daftar notifikasi terjadwal',
+                              style: TextStyle(
+                                  color: Colors.white54, fontSize: 11)),
+                          trailing: const Icon(Icons.chevron_right,
+                              color: Colors.white38, size: 18),
+                          onTap: _showNotificationDiagnostics,
                         ),
                       ],
                     ),
@@ -721,8 +920,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       labelText: 'Nama Lengkap',
-                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                      prefixIcon: const Icon(Icons.person_outlined, color: Color(0xFF6C63FF)),
+                      labelStyle:
+                          TextStyle(color: Colors.white.withOpacity(0.5)),
+                      prefixIcon: const Icon(Icons.person_outlined,
+                          color: Color(0xFF6C63FF)),
                       filled: true,
                       fillColor: const Color(0xFF1A1A2E),
                       border: OutlineInputBorder(
@@ -738,8 +939,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: const TextStyle(color: Colors.white70),
                     decoration: InputDecoration(
                       labelText: 'Email Terdaftar',
-                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                      prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF6C63FF)),
+                      labelStyle:
+                          TextStyle(color: Colors.white.withOpacity(0.5)),
+                      prefixIcon: const Icon(Icons.email_outlined,
+                          color: Color(0xFF6C63FF)),
                       filled: true,
                       fillColor: const Color(0xFF1A1A2E),
                       border: OutlineInputBorder(
@@ -766,7 +969,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ? const CircularProgressIndicator(color: Colors.white)
                           : const Text(
                               'Simpan Perubahan',
-                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold),
                             ),
                     ),
                   ),
@@ -786,7 +992,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       child: const Text(
                         'Logout',
-                        style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),

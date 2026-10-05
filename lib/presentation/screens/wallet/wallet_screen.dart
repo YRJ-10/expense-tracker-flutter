@@ -62,7 +62,9 @@ class _WalletScreenState extends State<WalletScreen> {
     if (userId == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Silakan login terlebih dahulu.'), backgroundColor: Colors.red),
+          const SnackBar(
+              content: Text('Silakan login terlebih dahulu.'),
+              backgroundColor: Colors.red),
         );
       }
       return;
@@ -74,7 +76,8 @@ class _WalletScreenState extends State<WalletScreen> {
     if (launched) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Halaman otorisasi Google dibuka. Selesaikan di browser lalu kembali ke aplikasi.'),
+          content: Text(
+              'Halaman otorisasi Google dibuka. Selesaikan di browser lalu kembali ke aplikasi.'),
           backgroundColor: Color(0xFF6C63FF),
         ),
       );
@@ -95,7 +98,8 @@ class _WalletScreenState extends State<WalletScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF1A1A2E),
-          title: const Text('Otorisasi Gmail', style: TextStyle(color: Colors.white)),
+          title: const Text('Otorisasi Gmail',
+              style: TextStyle(color: Colors.white)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -116,17 +120,20 @@ class _WalletScreenState extends State<WalletScreen> {
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: authUrl));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Tautan otorisasi berhasil disalin!')),
+                  const SnackBar(
+                      content: Text('Tautan otorisasi berhasil disalin!')),
                 );
               },
-              child: const Text('Salin Tautan', style: TextStyle(color: Color(0xFF6C63FF))),
+              child: const Text('Salin Tautan',
+                  style: TextStyle(color: Color(0xFF6C63FF))),
             ),
             TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
                 _loadData();
               },
-              child: const Text('Tutup', style: TextStyle(color: Colors.white54)),
+              child:
+                  const Text('Tutup', style: TextStyle(color: Colors.white54)),
             ),
           ],
         ),
@@ -148,7 +155,8 @@ class _WalletScreenState extends State<WalletScreen> {
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: const Color(0xFF1A1A2E),
-            title: const Text('Sinkronisasi Berhasil! 🎉', style: TextStyle(color: Colors.white)),
+            title: const Text('Sinkronisasi Berhasil! 🎉',
+                style: TextStyle(color: Colors.white)),
             content: Text(
               'Dipindai: ${result.totalScanned} email bank\n'
               'Transaksi baru ditambahkan: ${result.newTransactionsCount} transaksi.',
@@ -160,7 +168,8 @@ class _WalletScreenState extends State<WalletScreen> {
                   Navigator.pop(ctx);
                   _loadData();
                 },
-                child: const Text('OK', style: TextStyle(color: Color(0xFF6C63FF))),
+                child: const Text('OK',
+                    style: TextStyle(color: Color(0xFF6C63FF))),
               ),
             ],
           ),
@@ -214,7 +223,11 @@ class _WalletScreenState extends State<WalletScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Tambah Rekening / Dompet Baru', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Text('Tambah Rekening / Dompet Baru',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: selectedBankCode,
@@ -222,10 +235,13 @@ class _WalletScreenState extends State<WalletScreen> {
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: 'Pilih Bank / Sumber Dana',
-                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        labelStyle:
+                            TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
                         fillColor: const Color(0xFF0F0F1A),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
                       ),
                       items: _supportedBanks.map((b) {
                         return DropdownMenuItem(
@@ -237,7 +253,8 @@ class _WalletScreenState extends State<WalletScreen> {
                         if (val != null) {
                           setModalState(() {
                             selectedBankCode = val;
-                            final bank = _supportedBanks.firstWhere((b) => b['code'] == val);
+                            final bank = _supportedBanks
+                                .firstWhere((b) => b['code'] == val);
                             selectedIcon = bank['icon'] ?? '👛';
                             if (nameController.text.isEmpty) {
                               nameController.text = bank['name'] ?? '';
@@ -252,46 +269,71 @@ class _WalletScreenState extends State<WalletScreen> {
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: 'Nama Rekening / Label',
-                        hintText: selectedBankCode == 'CASH' ? 'Misal: Kas Brankas / Kas Dompet' : 'Misal: Mandiri Tabungan Utama',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
-                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        hintText: selectedBankCode == 'CASH'
+                            ? 'Misal: Kas Brankas / Kas Dompet'
+                            : 'Misal: Mandiri Tabungan Utama',
+                        hintStyle:
+                            TextStyle(color: Colors.white.withOpacity(0.2)),
+                        labelStyle:
+                            TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
                         fillColor: const Color(0xFF0F0F1A),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: accNumberController,
-                      keyboardType: selectedBankCode == 'CASH' ? TextInputType.text : TextInputType.number,
+                      keyboardType: selectedBankCode == 'CASH'
+                          ? TextInputType.text
+                          : TextInputType.number,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        labelText: selectedBankCode == 'CASH' ? 'Lokasi / Keterangan (Opsional)' : '4 Digit Terakhir No. Rekening (Opsional)',
-                        hintText: selectedBankCode == 'CASH' ? 'Misal: Brankas Kamar Utama' : 'Contoh: 0182 (sesuai email bank)',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
-                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        labelText: selectedBankCode == 'CASH'
+                            ? 'Lokasi / Keterangan (Opsional)'
+                            : '4 Digit Terakhir No. Rekening (Opsional)',
+                        hintText: selectedBankCode == 'CASH'
+                            ? 'Misal: Brankas Kamar Utama'
+                            : 'Contoh: 0182 (sesuai email bank)',
+                        hintStyle:
+                            TextStyle(color: Colors.white.withOpacity(0.2)),
+                        labelStyle:
+                            TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
                         fillColor: const Color(0xFF0F0F1A),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: balanceController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: false),
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
                         ThousandsSeparatorInputFormatter(),
                       ],
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        labelText: selectedBankCode == 'CASH' ? 'Saldo Awal (Kas Fisik / Brankas)' : 'Saldo Awal (Sesuai M-Banking)',
-                        hintText: selectedBankCode == 'CASH' ? 'Contoh: 100.000.000' : 'Contoh: 1.000.000.000',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
-                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        labelText: selectedBankCode == 'CASH'
+                            ? 'Saldo Awal (Kas Fisik / Brankas)'
+                            : 'Saldo Awal (Sesuai M-Banking)',
+                        hintText: selectedBankCode == 'CASH'
+                            ? 'Contoh: 100.000.000'
+                            : 'Contoh: 1.000.000.000',
+                        hintStyle:
+                            TextStyle(color: Colors.white.withOpacity(0.2)),
+                        labelStyle:
+                            TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
                         fillColor: const Color(0xFF0F0F1A),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -304,7 +346,8 @@ class _WalletScreenState extends State<WalletScreen> {
                             final userId = FirestoreService.currentUserId;
                             if (userId == null) return;
 
-                            final rawBal = balanceController.text.replaceAll('.', '');
+                            final rawBal =
+                                balanceController.text.replaceAll('.', '');
                             final initialBal = double.tryParse(rawBal) ?? 0.0;
 
                             await FirestoreService.addWallet({
@@ -324,11 +367,15 @@ class _WalletScreenState extends State<WalletScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF6C63FF),
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
                         child: Text(
-                          selectedBankCode == 'CASH' ? 'Simpan Kas Tunai' : 'Simpan Rekening',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          selectedBankCode == 'CASH'
+                              ? 'Simpan Kas Tunai'
+                              : 'Simpan Rekening',
+                          style: const TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
@@ -347,7 +394,8 @@ class _WalletScreenState extends State<WalletScreen> {
     final actualBalanceController = TextEditingController();
     final noteController = TextEditingController();
     final double currentAppBal = (wallet['balance'] as num?)?.toDouble() ?? 0.0;
-    final bool isCash = (wallet['bank_name'] ?? '').toString().toUpperCase() == 'CASH';
+    final bool isCash =
+        (wallet['bank_name'] ?? '').toString().toUpperCase() == 'CASH';
 
     showModalBottomSheet(
       context: context,
@@ -380,8 +428,13 @@ class _WalletScreenState extends State<WalletScreen> {
                         const Icon(Icons.sync_alt, color: Color(0xFF6C63FF)),
                         const SizedBox(width: 8),
                         Text(
-                          isCash ? 'Hitung Kas: ${wallet['name']}' : 'Rekonsiliasi: ${wallet['name']}',
-                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                          isCash
+                              ? 'Hitung Kas: ${wallet['name']}'
+                              : 'Rekonsiliasi: ${wallet['name']}',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
@@ -390,7 +443,8 @@ class _WalletScreenState extends State<WalletScreen> {
                       isCash
                           ? 'Hitung uang fisik di brankas/dompet Anda dan cocokkan dengan saldo di aplikasi.'
                           : 'Cocokkan saldo aplikasi dengan saldo aktual di m-banking Anda.',
-                      style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13),
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.6), fontSize: 13),
                     ),
                     const SizedBox(height: 16),
                     Container(
@@ -402,26 +456,36 @@ class _WalletScreenState extends State<WalletScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Saldo di Aplikasi Saat Ini:', style: TextStyle(color: Colors.white70)),
-                          Text(_formatCurrency(currentAppBal), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          const Text('Saldo di Aplikasi Saat Ini:',
+                              style: TextStyle(color: Colors.white70)),
+                          Text(_formatCurrency(currentAppBal),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: actualBalanceController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: false),
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
                         ThousandsSeparatorInputFormatter(),
                       ],
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        labelText: isCash ? 'Saldo Riil di Brankas / Kas' : 'Saldo Aktual di M-Banking',
-                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        labelText: isCash
+                            ? 'Saldo Riil di Brankas / Kas'
+                            : 'Saldo Aktual di M-Banking',
+                        labelStyle:
+                            TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
                         fillColor: const Color(0xFF0F0F1A),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
                       ),
                       onChanged: (_) => setModalState(() {}),
                     ),
@@ -432,7 +496,9 @@ class _WalletScreenState extends State<WalletScreen> {
                         decoration: BoxDecoration(
                           color: diff == 0
                               ? Colors.green.withOpacity(0.15)
-                              : (diff > 0 ? Colors.blue.withOpacity(0.15) : Colors.orange.withOpacity(0.15)),
+                              : (diff > 0
+                                  ? Colors.blue.withOpacity(0.15)
+                                  : Colors.orange.withOpacity(0.15)),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
@@ -447,7 +513,11 @@ class _WalletScreenState extends State<WalletScreen> {
                                   ? 'Sudah Cocok! (Rp 0)'
                                   : '${diff > 0 ? '+' : ''}${_formatCurrency(diff)}',
                               style: TextStyle(
-                                color: diff == 0 ? Colors.greenAccent : (diff > 0 ? Colors.blueAccent : Colors.orangeAccent),
+                                color: diff == 0
+                                    ? Colors.greenAccent
+                                    : (diff > 0
+                                        ? Colors.blueAccent
+                                        : Colors.orangeAccent),
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -461,12 +531,17 @@ class _WalletScreenState extends State<WalletScreen> {
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: 'Catatan Penyesuaian (Opsional)',
-                        hintText: 'Misal: Bunga bank, tarik tunai tanpa email, dsb',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
-                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        hintText:
+                            'Misal: Bunga bank, tarik tunai tanpa email, dsb',
+                        hintStyle:
+                            TextStyle(color: Colors.white.withOpacity(0.2)),
+                        labelStyle:
+                            TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
                         fillColor: const Color(0xFF0F0F1A),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -477,22 +552,29 @@ class _WalletScreenState extends State<WalletScreen> {
                           final userId = FirestoreService.currentUserId;
                           if (userId == null) return;
 
-                          final rawInput = actualBalanceController.text.replaceAll('.', '');
+                          final rawInput =
+                              actualBalanceController.text.replaceAll('.', '');
                           final double? actual = double.tryParse(rawInput);
                           if (actual == null) return;
 
-                          final success = await GmailSyncService.reconcileBalance(
+                          final success =
+                              await GmailSyncService.reconcileBalance(
                             userId: userId,
                             walletId: wallet['id'],
                             actualBalance: actual,
-                            note: noteController.text.trim().isNotEmpty ? noteController.text.trim() : null,
+                            note: noteController.text.trim().isNotEmpty
+                                ? noteController.text.trim()
+                                : null,
                           );
 
                           if (context.mounted) {
                             Navigator.pop(context);
                             if (success) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Rekonsiliasi saldo berhasil!'), backgroundColor: Colors.green),
+                                const SnackBar(
+                                    content:
+                                        Text('Rekonsiliasi saldo berhasil!'),
+                                    backgroundColor: Colors.green),
                               );
                             }
                             _loadData();
@@ -501,9 +583,13 @@ class _WalletScreenState extends State<WalletScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF6C63FF),
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('Terapkan Rekonsiliasi', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: const Text('Terapkan Rekonsiliasi',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -522,7 +608,8 @@ class _WalletScreenState extends State<WalletScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('Hapus Rekening/Dompet?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Hapus Rekening/Dompet?',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: Text(
           'Apakah Anda yakin ingin menghapus "${wallet['name']}"?\n\nRiwayat transaksi yang sudah dicatat tidak akan terhapus.',
           style: const TextStyle(color: Colors.white70),
@@ -577,7 +664,8 @@ class _WalletScreenState extends State<WalletScreen> {
                   color: Colors.white.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.mark_email_read, color: Colors.white, size: 24),
+                child: const Icon(Icons.mark_email_read,
+                    color: Colors.white, size: 24),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -586,29 +674,42 @@ class _WalletScreenState extends State<WalletScreen> {
                   children: [
                     const Text(
                       'Otomatisasi Bank via Gmail',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       _syncStatus.isConnected
                           ? 'Terhubung: ${_syncStatus.email ?? "Gmail Aktif"}'
                           : 'Hubungkan Gmail (Read-Only) untuk auto sync Mandiri',
-                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.7), fontSize: 12),
                     ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _syncStatus.isConnected ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
+                  color: _syncStatus.isConnected
+                      ? Colors.green.withOpacity(0.2)
+                      : Colors.orange.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _syncStatus.isConnected ? Colors.greenAccent : Colors.orangeAccent, width: 0.8),
+                  border: Border.all(
+                      color: _syncStatus.isConnected
+                          ? Colors.greenAccent
+                          : Colors.orangeAccent,
+                      width: 0.8),
                 ),
                 child: Text(
                   _syncStatus.isConnected ? 'Aktif' : 'Belum Konek',
                   style: TextStyle(
-                    color: _syncStatus.isConnected ? Colors.greenAccent : Colors.orangeAccent,
+                    color: _syncStatus.isConnected
+                        ? Colors.greenAccent
+                        : Colors.orangeAccent,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -620,13 +721,15 @@ class _WalletScreenState extends State<WalletScreen> {
           if (_syncStatus.isConnected) ...[
             Row(
               children: [
-                Icon(Icons.access_time, size: 14, color: Colors.white.withOpacity(0.5)),
+                Icon(Icons.access_time,
+                    size: 14, color: Colors.white.withOpacity(0.5)),
                 const SizedBox(width: 6),
                 Text(
                   _syncStatus.lastSyncedAt != null
                       ? 'Terakhir sync: ${DateFormat('dd MMM HH:mm').format(DateTime.parse(_syncStatus.lastSyncedAt!))}'
                       : 'Belum pernah sinkronisasi',
-                  style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.6), fontSize: 12),
                 ),
               ],
             ),
@@ -636,15 +739,23 @@ class _WalletScreenState extends State<WalletScreen> {
               child: ElevatedButton.icon(
                 onPressed: _isSyncing ? null : _handleSyncNow,
                 icon: _isSyncing
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.sync, color: Colors.white, size: 18),
                 label: Text(
-                  _isSyncing ? 'Memindai Email Bank...' : 'Sinkronkan Transaksi Sekarang',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  _isSyncing
+                      ? 'Memindai Email Bank...'
+                      : 'Sinkronkan Transaksi Sekarang',
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6C63FF),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
@@ -655,10 +766,13 @@ class _WalletScreenState extends State<WalletScreen> {
               child: ElevatedButton.icon(
                 onPressed: _handleConnectGmail,
                 icon: const Icon(Icons.login, color: Colors.white, size: 18),
-                label: const Text('Koneksikan Akun Gmail', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                label: const Text('Koneksikan Akun Gmail',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6C63FF),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
@@ -674,12 +788,14 @@ class _WalletScreenState extends State<WalletScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F1A),
       appBar: AppBar(
-        title: const Text('Rekening & Dompet', style: TextStyle(color: Colors.white)),
+        title: const Text('Rekening & Dompet',
+            style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF0F0F1A),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
           : RefreshIndicator(
               onRefresh: _loadData,
               child: ListView(
@@ -692,14 +808,23 @@ class _WalletScreenState extends State<WalletScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Daftar Rekening & Kas Tunai',
-                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      const Expanded(
+                        child: Text(
+                          'Daftar Rekening & Kas Tunai',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       TextButton.icon(
                         onPressed: _showAddWalletModal,
-                        icon: const Icon(Icons.add, color: Color(0xFF6C63FF), size: 18),
-                        label: const Text('Tambah', style: TextStyle(color: Color(0xFF6C63FF))),
+                        icon: const Icon(Icons.add,
+                            color: Color(0xFF6C63FF), size: 18),
+                        label: const Text('Tambah',
+                            style: TextStyle(color: Color(0xFF6C63FF))),
                       ),
                     ],
                   ),
@@ -714,29 +839,40 @@ class _WalletScreenState extends State<WalletScreen> {
                       ),
                       child: Column(
                         children: [
-                          const Icon(Icons.account_balance_outlined, color: Colors.white54, size: 48),
+                          const Icon(Icons.account_balance_outlined,
+                              color: Colors.white54, size: 48),
                           const SizedBox(height: 12),
-                          const Text('Belum ada rekening/dompet', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          const Text('Belum ada rekening/dompet',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           Text(
                             'Tambahkan rekening Mandiri Anda untuk mulai auto sync notifikasi transaksi.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                            style: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 12),
                           ),
                           const SizedBox(height: 16),
                           ElevatedButton(
                             onPressed: _showAddWalletModal,
-                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
-                            child: const Text('Tambah Rekening Sekarang', style: TextStyle(color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF6C63FF)),
+                            child: const Text('Tambah Rekening Sekarang',
+                                style: TextStyle(color: Colors.white)),
                           ),
                         ],
                       ),
                     )
                   else
                     ..._wallets.map((wallet) {
-                      final double bal = (wallet['balance'] as num?)?.toDouble() ?? 0.0;
-                      final String accNum = wallet['account_number']?.toString() ?? '';
-                      final String bankName = wallet['bank_name']?.toString() ?? '';
+                      final double bal =
+                          (wallet['balance'] as num?)?.toDouble() ?? 0.0;
+                      final String accNum =
+                          wallet['account_number']?.toString() ?? '';
+                      final String bankName =
+                          wallet['bank_name']?.toString() ?? '';
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 16),
@@ -744,7 +880,8 @@ class _WalletScreenState extends State<WalletScreen> {
                         decoration: BoxDecoration(
                           color: const Color(0xFF1A1A2E),
                           borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: Colors.white.withOpacity(0.08)),
+                          border:
+                              Border.all(color: Colors.white.withOpacity(0.08)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -754,29 +891,41 @@ class _WalletScreenState extends State<WalletScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF6C63FF).withOpacity(0.15),
+                                    color: const Color(0xFF6C63FF)
+                                        .withOpacity(0.15),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: Text(wallet['icon'] ?? '🏦', style: const TextStyle(fontSize: 22)),
+                                  child: Text(wallet['icon'] ?? '🏦',
+                                      style: const TextStyle(fontSize: 22)),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         wallet['name'] ?? 'Rekening',
-                                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold),
                                       ),
                                       if (accNum.isNotEmpty)
                                         Text(
                                           'No. Rek: ****$accNum ($bankName)',
-                                          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                                          style: TextStyle(
+                                              color:
+                                                  Colors.white.withOpacity(0.5),
+                                              fontSize: 12),
                                         )
                                       else if (bankName.toUpperCase() == 'CASH')
                                         Text(
                                           'Kas Fisik / Brankas Tunai',
-                                          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                                          style: TextStyle(
+                                              color:
+                                                  Colors.white.withOpacity(0.5),
+                                              fontSize: 12),
                                         ),
                                     ],
                                   ),
@@ -784,10 +933,16 @@ class _WalletScreenState extends State<WalletScreen> {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    const Text('Saldo', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                                    const Text('Saldo',
+                                        style: TextStyle(
+                                            color: Colors.white54,
+                                            fontSize: 11)),
                                     Text(
                                       _formatCurrency(bal),
-                                      style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                                      style: const TextStyle(
+                                          color: Colors.greenAccent,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold),
                                     ),
                                   ],
                                 ),
@@ -800,23 +955,34 @@ class _WalletScreenState extends State<WalletScreen> {
                                 Row(
                                   children: [
                                     TextButton.icon(
-                                      onPressed: () => _showReconciliationModal(wallet),
-                                      icon: const Icon(Icons.sync_alt, size: 16, color: Color(0xFF6C63FF)),
-                                      label: const Text('Rekonsiliasi', style: TextStyle(color: Color(0xFF6C63FF), fontSize: 13)),
+                                      onPressed: () =>
+                                          _showReconciliationModal(wallet),
+                                      icon: const Icon(Icons.sync_alt,
+                                          size: 16, color: Color(0xFF6C63FF)),
+                                      label: const Text('Rekonsiliasi',
+                                          style: TextStyle(
+                                              color: Color(0xFF6C63FF),
+                                              fontSize: 13)),
                                     ),
                                     const SizedBox(width: 4),
                                     TextButton.icon(
                                       onPressed: () async {
-                                        await Navigator.pushNamed(context, '/add-transaction');
+                                        await Navigator.pushNamed(
+                                            context, '/add-transaction');
                                         _loadData();
                                       },
-                                      icon: const Icon(Icons.edit_note, size: 16, color: Colors.white70),
-                                      label: const Text('Adjust', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                      icon: const Icon(Icons.edit_note,
+                                          size: 16, color: Colors.white70),
+                                      label: const Text('Adjust',
+                                          style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 13)),
                                     ),
                                   ],
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: Colors.redAccent, size: 20),
                                   tooltip: 'Hapus Rekening',
                                   onPressed: () => _confirmDeleteWallet(wallet),
                                 ),

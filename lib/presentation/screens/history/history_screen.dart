@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 import 'package:expense_tracker_flutter/utils/export_helper.dart';
 
@@ -11,10 +12,15 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
+  static const int _pageSize = 50;
   List<Map<String, dynamic>> _transactions = [];
   bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = false;
   String _filterType = 'all';
-  DateTime _selectedDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime _selectedDate =
+      DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DocumentSnapshot<Map<String, dynamic>>? _lastDocument;
 
   @override
   void initState() {
@@ -22,36 +28,66 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _loadTransactions();
   }
 
-  Future<void> _loadTransactions() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadTransactions({bool loadMore = false}) async {
+    if (loadMore && (!_hasMore || _isLoadingMore)) return;
+
+    if (loadMore) {
+      setState(() => _isLoadingMore = true);
+    } else {
+      setState(() {
+        _isLoading = true;
+        _transactions = [];
+        _lastDocument = null;
+        _hasMore = false;
+      });
+    }
+
     final userId = FirestoreService.currentUserId;
     if (userId == null) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isLoadingMore = false;
+        });
+      }
       return;
     }
 
     try {
-      final all = await FirestoreService.getTransactions(userId);
       final startOfMonth = DateTime(_selectedDate.year, _selectedDate.month, 1);
-      final endOfMonth = DateTime(_selectedDate.year, _selectedDate.month + 1, 0, 23, 59, 59);
-
-      final filtered = all.where((t) {
-        final rawDate = t['transaction_date'] ?? t['date'];
-        if (rawDate == null) return false;
-        final date = DateTime.tryParse(rawDate.toString());
-        if (date == null) return false;
-        return date.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-            date.isBefore(endOfMonth.add(const Duration(seconds: 1)));
-      }).toList();
+      final endOfMonth =
+          DateTime(_selectedDate.year, _selectedDate.month + 1, 0, 23, 59, 59);
+      final page = await FirestoreService.getTransactionPage(
+        userId: userId,
+        startDate: startOfMonth,
+        endDate: endOfMonth,
+        limit: _pageSize,
+        startAfter: loadMore ? _lastDocument : null,
+      );
 
       if (mounted) {
         setState(() {
-          _transactions = filtered;
+          _transactions =
+              loadMore ? [..._transactions, ...page.items] : page.items;
+          _lastDocument = page.lastDocument;
+          _hasMore = page.hasMore;
           _isLoading = false;
+          _isLoadingMore = false;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isLoadingMore = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat riwayat: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 
@@ -69,7 +105,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('Hapus Transaksi?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Hapus Transaksi?',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: const Text(
           'Apakah Anda yakin ingin menghapus transaksi ini?\n\nSaldo dompet terkait akan disesuaikan kembali secara otomatis.',
           style: TextStyle(color: Colors.white70),
@@ -97,7 +134,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   void _showEditTransactionModal(Map<String, dynamic> t) {
-    final descController = TextEditingController(text: t['description'] ?? t['note'] ?? '');
+    final descController =
+        TextEditingController(text: t['description'] ?? t['note'] ?? '');
     final noteController = TextEditingController(text: t['note'] ?? '');
     String selectedCategory = t['category'] ?? 'Lainnya';
     final double amount = (t['amount'] as num?)?.toDouble() ?? 0.0;
@@ -106,8 +144,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final String? bank = t['bank_name'];
 
     final List<String> categories = isIncome
-        ? ['Gaji', 'Bonus', 'Investasi', 'Transfer Masuk', 'Penyesuaian Manual', 'Lainnya']
-        : ['Makanan', 'Transportasi', 'Belanja', 'Tagihan', 'Kartu Kredit / Utang', 'Hiburan', 'Kesehatan', 'Penyesuaian Manual', 'Lainnya'];
+        ? [
+            'Gaji',
+            'Bonus',
+            'Investasi',
+            'Transfer Masuk',
+            'Penyesuaian Manual',
+            'Lainnya'
+          ]
+        : [
+            'Makanan',
+            'Transportasi',
+            'Belanja',
+            'Tagihan',
+            'Kartu Kredit / Utang',
+            'Hiburan',
+            'Kesehatan',
+            'Penyesuaian Manual',
+            'Lainnya'
+          ];
 
     if (!categories.contains(selectedCategory)) {
       categories.insert(0, selectedCategory);
@@ -117,7 +172,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       context: context,
       backgroundColor: const Color(0xFF1A1A2E),
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -136,7 +192,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Detail & Edit Transaksi', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        const Text('Detail & Edit Transaksi',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold)),
                         IconButton(
                           icon: const Icon(Icons.close, color: Colors.white54),
                           onPressed: () => Navigator.pop(context),
@@ -156,26 +216,36 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           Row(
                             children: [
                               Icon(
-                                isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-                                color: isIncome ? Colors.greenAccent : Colors.redAccent,
+                                isIncome
+                                    ? Icons.arrow_downward
+                                    : Icons.arrow_upward,
+                                color: isIncome
+                                    ? Colors.greenAccent
+                                    : Colors.redAccent,
                                 size: 18,
                               ),
                               const SizedBox(width: 8),
                               Text(
                                 isIncome ? 'Pemasukan' : 'Pengeluaran',
-                                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 13),
                               ),
                               if (isAutoSynced) ...[
                                 const SizedBox(width: 8),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF6C63FF).withOpacity(0.25),
+                                    color: const Color(0xFF6C63FF)
+                                        .withOpacity(0.25),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
                                     bank ?? 'Mandiri Auto',
-                                    style: const TextStyle(color: Color(0xFF9C95FF), fontSize: 10, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(
+                                        color: Color(0xFF9C95FF),
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ],
@@ -184,7 +254,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           Text(
                             '${isIncome ? '+' : '-'}${_formatCurrency(amount)}',
                             style: TextStyle(
-                              color: isIncome ? Colors.greenAccent : Colors.redAccent,
+                              color: isIncome
+                                  ? Colors.greenAccent
+                                  : Colors.redAccent,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -198,24 +270,36 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: 'Keterangan / Merchant',
-                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        labelStyle:
+                            TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
                         fillColor: const Color(0xFF0F0F1A),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
                       ),
                     ),
                     const SizedBox(height: 14),
-                    const Text('Kategori', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    const Text('Kategori',
+                        style: TextStyle(color: Colors.white70, fontSize: 13)),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
                       dropdownColor: const Color(0xFF0F0F1A),
                       value: selectedCategory,
-                      items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(color: Colors.white)))).toList(),
-                      onChanged: (val) => setModalState(() => selectedCategory = val ?? selectedCategory),
+                      items: categories
+                          .map((c) => DropdownMenuItem(
+                              value: c,
+                              child: Text(c,
+                                  style: const TextStyle(color: Colors.white))))
+                          .toList(),
+                      onChanged: (val) => setModalState(
+                          () => selectedCategory = val ?? selectedCategory),
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: const Color(0xFF0F0F1A),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -224,10 +308,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         labelText: 'Catatan Tambahan (Opsional)',
-                        labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        labelStyle:
+                            TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
                         fillColor: const Color(0xFF0F0F1A),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -235,17 +322,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       children: [
                         OutlinedButton.icon(
                           onPressed: () async {
-                            final deleted = await _confirmDeleteTransaction(t['id']);
+                            final deleted =
+                                await _confirmDeleteTransaction(t['id']);
                             if (deleted && context.mounted) {
                               Navigator.pop(context);
                             }
                           },
-                          icon: const Icon(Icons.delete, size: 16, color: Colors.redAccent),
-                          label: const Text('Hapus', style: TextStyle(color: Colors.redAccent)),
+                          icon: const Icon(Icons.delete,
+                              size: 16, color: Colors.redAccent),
+                          label: const Text('Hapus',
+                              style: TextStyle(color: Colors.redAccent)),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Colors.redAccent),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 14, horizontal: 16),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -254,25 +346,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             onPressed: () async {
                               final newDesc = descController.text.trim();
                               final newNote = noteController.text.trim();
-                              await FirestoreService.updateTransaction(t['id'], {
-                                'description': newDesc.isNotEmpty ? newDesc : t['description'],
+                              await FirestoreService.updateTransaction(
+                                  t['id'], {
+                                'description': newDesc.isNotEmpty
+                                    ? newDesc
+                                    : t['description'],
                                 'category': selectedCategory,
                                 'note': newNote,
                               });
                               if (context.mounted) {
                                 Navigator.pop(context);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Perubahan transaksi disimpan!'), backgroundColor: Colors.green),
+                                  const SnackBar(
+                                      content:
+                                          Text('Perubahan transaksi disimpan!'),
+                                      backgroundColor: Colors.green),
                                 );
                                 _loadTransactions();
                               }
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF6C63FF),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
                               padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
-                            child: const Text('Simpan Perubahan', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            child: const Text('Simpan Perubahan',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],
@@ -290,13 +392,30 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   void _changeMonth(int increment) {
     setState(() {
-      _selectedDate = DateTime(_selectedDate.year, _selectedDate.month + increment, 1);
+      _selectedDate =
+          DateTime(_selectedDate.year, _selectedDate.month + increment, 1);
+      _lastDocument = null;
+      _hasMore = false;
     });
     _loadTransactions();
   }
 
   String _getMonthName(DateTime date) {
-    const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const monthNames = [
+      '',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember'
+    ];
     return '${monthNames[date.month]} ${date.year}';
   }
 
@@ -307,7 +426,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F0F1A),
         elevation: 0,
-        title: const Text('Riwayat Transaksi', style: TextStyle(color: Colors.white)),
+        title: const Text('Riwayat Transaksi',
+            style: TextStyle(color: Colors.white)),
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.download, color: Colors.white),
@@ -320,8 +440,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
               }
             },
             itemBuilder: (ctx) => [
-              const PopupMenuItem(value: 'csv', child: Text('Ekspor ke CSV', style: TextStyle(color: Colors.white))),
-              const PopupMenuItem(value: 'pdf', child: Text('Ekspor ke PDF', style: TextStyle(color: Colors.white))),
+              const PopupMenuItem(
+                  value: 'csv',
+                  child: Text('Ekspor ke CSV',
+                      style: TextStyle(color: Colors.white))),
+              const PopupMenuItem(
+                  value: 'pdf',
+                  child: Text('Ekspor ke PDF',
+                      style: TextStyle(color: Colors.white))),
             ],
           ),
         ],
@@ -341,7 +467,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
                 Text(
                   _getMonthName(_selectedDate),
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold),
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right, color: Colors.white),
@@ -367,35 +496,80 @@ class _HistoryScreenState extends State<HistoryScreen> {
           // List
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
-                : _filteredTransactions.isEmpty
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
+                : _filteredTransactions.isEmpty && !_hasMore
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.receipt_long, size: 60, color: Colors.white.withOpacity(0.2)),
+                            Icon(Icons.receipt_long,
+                                size: 60, color: Colors.white.withOpacity(0.2)),
                             const SizedBox(height: 16),
-                            Text('Belum ada transaksi di bulan ini', style: TextStyle(color: Colors.white.withOpacity(0.4))),
+                            Text('Belum ada transaksi di bulan ini',
+                                style: TextStyle(
+                                    color: Colors.white.withOpacity(0.4))),
                           ],
                         ),
                       )
                     : RefreshIndicator(
                         onRefresh: _loadTransactions,
                         child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          itemCount: _filteredTransactions.length,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                          itemCount:
+                              _filteredTransactions.length + (_hasMore ? 1 : 0),
                           itemBuilder: (context, index) {
+                            if (index == _filteredTransactions.length) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 20),
+                                child: OutlinedButton(
+                                  onPressed: _isLoadingMore
+                                      ? null
+                                      : () => _loadTransactions(loadMore: true),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(
+                                        color: Color(0xFF6C63FF)),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 14),
+                                  ),
+                                  child: _isLoadingMore
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Color(0xFF6C63FF)),
+                                        )
+                                      : const Text('Muat 50 Transaksi Lagi',
+                                          style: TextStyle(
+                                              color: Color(0xFF6C63FF),
+                                              fontWeight: FontWeight.bold)),
+                                ),
+                              );
+                            }
+
                             final t = _filteredTransactions[index];
                             final isIncome = t['type'] == 'income';
-                            final double amount = (t['amount'] as num?)?.toDouble() ?? 0.0;
-                            final String categoryName = t['category'] ?? 'Lainnya';
-                            final bool isAutoSynced = t['is_auto_synced'] == true;
+                            final double amount =
+                                (t['amount'] as num?)?.toDouble() ?? 0.0;
+                            final String categoryName =
+                                t['category'] ?? 'Lainnya';
+                            final bool isAutoSynced =
+                                t['is_auto_synced'] == true;
                             final bool isRecon = t['is_reconciliation'] == true;
                             final String? bank = t['bank_name'];
-                            final String desc = t['description'] ?? t['note'] ?? categoryName;
-                            final String rawDate = t['transaction_date'] ?? t['date'] ?? '';
+                            final String desc =
+                                t['description'] ?? t['note'] ?? categoryName;
+                            final String rawDate =
+                                t['transaction_date'] ?? t['date'] ?? '';
                             final String displayDate = rawDate.isNotEmpty
-                                ? DateFormat('dd MMM yyyy, HH:mm').format(DateTime.tryParse(rawDate) ?? DateTime.now())
+                                ? DateFormat('dd MMM yyyy, HH:mm').format(
+                                    DateTime.tryParse(rawDate) ??
+                                        DateTime.now())
                                 : '';
 
                             return Dismissible(
@@ -408,9 +582,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   color: Colors.redAccent,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: const Icon(Icons.delete, color: Colors.white),
+                                child: const Icon(Icons.delete,
+                                    color: Colors.white),
                               ),
-                              confirmDismiss: (_) => _confirmDeleteTransaction(t['id']),
+                              confirmDismiss: (_) =>
+                                  _confirmDeleteTransaction(t['id']),
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(16),
                                 onTap: () => _showEditTransactionModal(t),
@@ -422,7 +598,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
                                       color: isAutoSynced
-                                          ? const Color(0xFF6C63FF).withOpacity(0.3)
+                                          ? const Color(0xFF6C63FF)
+                                              .withOpacity(0.3)
                                           : Colors.white.withOpacity(0.05),
                                     ),
                                   ),
@@ -431,56 +608,94 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       Container(
                                         padding: const EdgeInsets.all(10),
                                         decoration: BoxDecoration(
-                                          color: (isIncome ? Colors.green : Colors.red).withOpacity(0.15),
-                                          borderRadius: BorderRadius.circular(12),
+                                          color: (isIncome
+                                                  ? Colors.green
+                                                  : Colors.red)
+                                              .withOpacity(0.15),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                         ),
                                         child: Icon(
-                                          isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-                                          color: isIncome ? Colors.greenAccent : Colors.redAccent,
+                                          isIncome
+                                              ? Icons.arrow_downward
+                                              : Icons.arrow_upward,
+                                          color: isIncome
+                                              ? Colors.greenAccent
+                                              : Colors.redAccent,
                                           size: 20,
                                         ),
                                       ),
                                       const SizedBox(width: 14),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Text(
                                               desc,
-                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+                                              style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 15),
                                             ),
                                             const SizedBox(height: 3),
                                             Row(
                                               children: [
                                                 Text(
                                                   categoryName,
-                                                  style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+                                                  style: TextStyle(
+                                                      color: Colors.white
+                                                          .withOpacity(0.4),
+                                                      fontSize: 12),
                                                 ),
                                                 if (isAutoSynced) ...[
                                                   const SizedBox(width: 6),
                                                   Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 1.5),
                                                     decoration: BoxDecoration(
-                                                      color: const Color(0xFF6C63FF).withOpacity(0.25),
-                                                      borderRadius: BorderRadius.circular(4),
+                                                      color: const Color(
+                                                              0xFF6C63FF)
+                                                          .withOpacity(0.25),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              4),
                                                     ),
                                                     child: Text(
                                                       bank ?? 'Auto Sync',
-                                                      style: const TextStyle(color: Color(0xFF9C95FF), fontSize: 10, fontWeight: FontWeight.bold),
+                                                      style: const TextStyle(
+                                                          color:
+                                                              Color(0xFF9C95FF),
+                                                          fontSize: 10,
+                                                          fontWeight:
+                                                              FontWeight.bold),
                                                     ),
                                                   ),
                                                 ],
                                                 if (isRecon) ...[
                                                   const SizedBox(width: 6),
                                                   Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 1.5),
                                                     decoration: BoxDecoration(
-                                                      color: Colors.blue.withOpacity(0.25),
-                                                      borderRadius: BorderRadius.circular(4),
+                                                      color: Colors.blue
+                                                          .withOpacity(0.25),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              4),
                                                     ),
                                                     child: const Text(
                                                       'Rekonsiliasi',
-                                                      style: TextStyle(color: Colors.blueAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                                                      style: TextStyle(
+                                                          color:
+                                                              Colors.blueAccent,
+                                                          fontSize: 10,
+                                                          fontWeight:
+                                                              FontWeight.bold),
                                                     ),
                                                   ),
                                                 ],
@@ -488,10 +703,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                             ),
                                             if (displayDate.isNotEmpty)
                                               Padding(
-                                                padding: const EdgeInsets.only(top: 2),
+                                                padding: const EdgeInsets.only(
+                                                    top: 2),
                                                 child: Text(
                                                   displayDate,
-                                                  style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11),
+                                                  style: TextStyle(
+                                                      color: Colors.white
+                                                          .withOpacity(0.3),
+                                                      fontSize: 11),
                                                 ),
                                               ),
                                           ],
@@ -500,7 +719,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       Text(
                                         '${isIncome ? '+' : '-'}${_formatCurrency(amount)}',
                                         style: TextStyle(
-                                          color: isIncome ? Colors.greenAccent : Colors.redAccent,
+                                          color: isIncome
+                                              ? Colors.greenAccent
+                                              : Colors.redAccent,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 15,
                                         ),
@@ -529,7 +750,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           color: isSelected ? const Color(0xFF6C63FF) : const Color(0xFF1A1A2E),
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
+        child: Text(label,
+            style: const TextStyle(color: Colors.white, fontSize: 13)),
       ),
     );
   }

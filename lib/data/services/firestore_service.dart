@@ -23,13 +23,20 @@ class FirestoreService {
     return null;
   }
 
-  static Future<void> saveProfile(String userId, Map<String, dynamic> data) async {
-    await _db.collection('profiles').doc(userId).set(data, SetOptions(merge: true));
+  static Future<void> saveProfile(
+      String userId, Map<String, dynamic> data) async {
+    await _db
+        .collection('profiles')
+        .doc(userId)
+        .set(data, SetOptions(merge: true));
   }
 
   // ------------------ WALLETS ------------------
   static Future<List<Map<String, dynamic>>> getWallets(String userId) async {
-    final snap = await _db.collection('wallets').where('user_id', isEqualTo: userId).get();
+    final snap = await _db
+        .collection('wallets')
+        .where('user_id', isEqualTo: userId)
+        .get();
     return snap.docs.map((doc) {
       final data = doc.data();
       data['id'] = doc.id;
@@ -46,9 +53,13 @@ class FirestoreService {
     return id;
   }
 
-  static Future<void> updateWallet(String walletId, Map<String, dynamic> data) async {
+  static Future<void> updateWallet(
+      String walletId, Map<String, dynamic> data) async {
     data['updated_at'] = DateTime.now().toIso8601String();
-    await _db.collection('wallets').doc(walletId).set(data, SetOptions(merge: true));
+    await _db
+        .collection('wallets')
+        .doc(walletId)
+        .set(data, SetOptions(merge: true));
   }
 
   static Future<void> deleteWallet(String walletId) async {
@@ -56,8 +67,12 @@ class FirestoreService {
   }
 
   // ------------------ TRANSACTIONS ------------------
-  static Future<List<Map<String, dynamic>>> getTransactions(String userId) async {
-    final snap = await _db.collection('transactions').where('user_id', isEqualTo: userId).get();
+  static Future<List<Map<String, dynamic>>> getTransactions(
+      String userId) async {
+    final snap = await _db
+        .collection('transactions')
+        .where('user_id', isEqualTo: userId)
+        .get();
     final list = snap.docs.map((doc) {
       final data = doc.data();
       data['id'] = doc.id;
@@ -65,11 +80,50 @@ class FirestoreService {
     }).toList();
     // Sort descending by date
     list.sort((a, b) {
-      final dateA = DateTime.tryParse(a['transaction_date']?.toString() ?? '') ?? DateTime(1970);
-      final dateB = DateTime.tryParse(b['transaction_date']?.toString() ?? '') ?? DateTime(1970);
+      final dateA =
+          DateTime.tryParse(a['transaction_date']?.toString() ?? '') ??
+              DateTime(1970);
+      final dateB =
+          DateTime.tryParse(b['transaction_date']?.toString() ?? '') ??
+              DateTime(1970);
       return dateB.compareTo(dateA);
     });
     return list;
+  }
+
+  static Future<TransactionPage> getTransactionPage({
+    required String userId,
+    required DateTime startDate,
+    required DateTime endDate,
+    int limit = 50,
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+  }) async {
+    var query = _db
+        .collection('transactions')
+        .where('user_id', isEqualTo: userId)
+        .where('transaction_date',
+            isGreaterThanOrEqualTo: startDate.toIso8601String())
+        .where('transaction_date',
+            isLessThanOrEqualTo: endDate.toIso8601String())
+        .orderBy('transaction_date', descending: true)
+        .limit(limit);
+
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+
+    final snap = await query.get();
+    final items = snap.docs.map((doc) {
+      final data = doc.data();
+      data['id'] = doc.id;
+      return data;
+    }).toList();
+
+    return TransactionPage(
+      items: items,
+      lastDocument: snap.docs.isNotEmpty ? snap.docs.last : startAfter,
+      hasMore: snap.docs.length == limit,
+    );
   }
 
   static Future<String> addTransaction(Map<String, dynamic> data) async {
@@ -87,9 +141,14 @@ class FirestoreService {
     if (walletId != null && walletId.toString().isNotEmpty) {
       final walletDoc = await _db.collection('wallets').doc(walletId).get();
       if (walletDoc.exists) {
-        final currentBal = (walletDoc.data()?['balance'] as num?)?.toDouble() ?? 0.0;
-        final newBal = type == 'income' ? (currentBal + amount) : (currentBal - amount);
-        await _db.collection('wallets').doc(walletId).update({'balance': newBal});
+        final currentBal =
+            (walletDoc.data()?['balance'] as num?)?.toDouble() ?? 0.0;
+        final newBal =
+            type == 'income' ? (currentBal + amount) : (currentBal - amount);
+        await _db
+            .collection('wallets')
+            .doc(walletId)
+            .update({'balance': newBal});
       }
     }
 
@@ -118,22 +177,34 @@ class FirestoreService {
       if (walletId != null) {
         final walletDoc = await _db.collection('wallets').doc(walletId).get();
         if (walletDoc.exists) {
-          final currentBal = (walletDoc.data()?['balance'] as num?)?.toDouble() ?? 0.0;
-          final newBal = type == 'income' ? (currentBal - amount) : (currentBal + amount);
-          await _db.collection('wallets').doc(walletId).update({'balance': newBal});
+          final currentBal =
+              (walletDoc.data()?['balance'] as num?)?.toDouble() ?? 0.0;
+          final newBal =
+              type == 'income' ? (currentBal - amount) : (currentBal + amount);
+          await _db
+              .collection('wallets')
+              .doc(walletId)
+              .update({'balance': newBal});
         }
       }
       await _db.collection('transactions').doc(transactionId).delete();
     }
   }
 
-  static Future<void> updateTransaction(String transactionId, Map<String, dynamic> data) async {
-    await _db.collection('transactions').doc(transactionId).set(data, SetOptions(merge: true));
+  static Future<void> updateTransaction(
+      String transactionId, Map<String, dynamic> data) async {
+    await _db
+        .collection('transactions')
+        .doc(transactionId)
+        .set(data, SetOptions(merge: true));
   }
 
   // ------------------ BUDGETS ------------------
   static Future<List<Map<String, dynamic>>> getBudgets(String userId) async {
-    final snap = await _db.collection('budgets').where('user_id', isEqualTo: userId).get();
+    final snap = await _db
+        .collection('budgets')
+        .where('user_id', isEqualTo: userId)
+        .get();
     return snap.docs.map((doc) {
       final d = doc.data();
       d['id'] = doc.id;
@@ -148,8 +219,12 @@ class FirestoreService {
     await docRef.set(data);
   }
 
-  static Future<void> updateBudget(String budgetId, Map<String, dynamic> data) async {
-    await _db.collection('budgets').doc(budgetId).set(data, SetOptions(merge: true));
+  static Future<void> updateBudget(
+      String budgetId, Map<String, dynamic> data) async {
+    await _db
+        .collection('budgets')
+        .doc(budgetId)
+        .set(data, SetOptions(merge: true));
   }
 
   static Future<void> deleteBudget(String budgetId) async {
@@ -158,7 +233,10 @@ class FirestoreService {
 
   // ------------------ FINANCIAL GOALS ------------------
   static Future<List<Map<String, dynamic>>> getGoals(String userId) async {
-    final snap = await _db.collection('financial_goals').where('user_id', isEqualTo: userId).get();
+    final snap = await _db
+        .collection('financial_goals')
+        .where('user_id', isEqualTo: userId)
+        .get();
     return snap.docs.map((doc) {
       final d = doc.data();
       d['id'] = doc.id;
@@ -173,8 +251,12 @@ class FirestoreService {
     await docRef.set(data);
   }
 
-  static Future<void> updateGoal(String goalId, Map<String, dynamic> data) async {
-    await _db.collection('financial_goals').doc(goalId).set(data, SetOptions(merge: true));
+  static Future<void> updateGoal(
+      String goalId, Map<String, dynamic> data) async {
+    await _db
+        .collection('financial_goals')
+        .doc(goalId)
+        .set(data, SetOptions(merge: true));
   }
 
   static Future<void> deleteGoal(String goalId) async {
@@ -192,7 +274,8 @@ class FirestoreService {
     final goalDoc = await _db.collection('financial_goals').doc(goalId).get();
     if (!goalDoc.exists) return;
 
-    final currentAmount = (goalDoc.data()?['current_amount'] as num?)?.toDouble() ?? 0.0;
+    final currentAmount =
+        (goalDoc.data()?['current_amount'] as num?)?.toDouble() ?? 0.0;
     final newAmount = currentAmount + amount;
 
     await _db.collection('financial_goals').doc(goalId).set({
@@ -231,7 +314,8 @@ class FirestoreService {
     final goalDoc = await _db.collection('financial_goals').doc(goalId).get();
     if (!goalDoc.exists) return;
 
-    final currentAmount = (goalDoc.data()?['current_amount'] as num?)?.toDouble() ?? 0.0;
+    final currentAmount =
+        (goalDoc.data()?['current_amount'] as num?)?.toDouble() ?? 0.0;
     final newAmount = (currentAmount - amount).clamp(0.0, double.infinity);
 
     await _db.collection('financial_goals').doc(goalId).set({
@@ -261,7 +345,8 @@ class FirestoreService {
 
   // ------------------ DEBTS ------------------
   static Future<List<Map<String, dynamic>>> getDebts(String userId) async {
-    final snap = await _db.collection('debts').where('user_id', isEqualTo: userId).get();
+    final snap =
+        await _db.collection('debts').where('user_id', isEqualTo: userId).get();
     return snap.docs.map((doc) {
       final d = doc.data();
       d['id'] = doc.id;
@@ -282,8 +367,12 @@ class FirestoreService {
     await docRef.set(data);
   }
 
-  static Future<void> updateDebt(String debtId, Map<String, dynamic> data) async {
-    await _db.collection('debts').doc(debtId).set(data, SetOptions(merge: true));
+  static Future<void> updateDebt(
+      String debtId, Map<String, dynamic> data) async {
+    await _db
+        .collection('debts')
+        .doc(debtId)
+        .set(data, SetOptions(merge: true));
   }
 
   static Future<void> payDebt({
@@ -299,12 +388,16 @@ class FirestoreService {
     if (!debtDoc.exists) return;
 
     final debtData = debtDoc.data()!;
-    final double originalTotal = (debtData['amount'] as num?)?.toDouble() ?? 0.0;
-    final double currentRemaining = (debtData['remaining_amount'] as num?)?.toDouble() ?? 
-        (debtData['is_paid'] == true ? 0.0 : originalTotal);
-    final double currentPaid = (debtData['paid_amount'] as num?)?.toDouble() ?? 0.0;
+    final double originalTotal =
+        (debtData['amount'] as num?)?.toDouble() ?? 0.0;
+    final double currentRemaining =
+        (debtData['remaining_amount'] as num?)?.toDouble() ??
+            (debtData['is_paid'] == true ? 0.0 : originalTotal);
+    final double currentPaid =
+        (debtData['paid_amount'] as num?)?.toDouble() ?? 0.0;
 
-    final double newRemaining = (currentRemaining - paymentAmount).clamp(0.0, double.infinity);
+    final double newRemaining =
+        (currentRemaining - paymentAmount).clamp(0.0, double.infinity);
     final double newPaid = currentPaid + paymentAmount;
     final bool isPaid = newRemaining <= 0;
 
@@ -319,7 +412,9 @@ class FirestoreService {
     final txType = isBorrowed ? 'expense' : 'income';
     final desc = (note != null && note.trim().isNotEmpty)
         ? note.trim()
-        : (isBorrowed ? 'Bayar Cicilan: $personName' : 'Penerimaan Piutang: $personName');
+        : (isBorrowed
+            ? 'Bayar Cicilan: $personName'
+            : 'Penerimaan Piutang: $personName');
 
     await addTransaction({
       'user_id': userId,
@@ -342,8 +437,12 @@ class FirestoreService {
   }
 
   // ------------------ RECURRING TRANSACTIONS ------------------
-  static Future<List<Map<String, dynamic>>> getRecurringTransactions(String userId) async {
-    final snap = await _db.collection('recurring_transactions').where('user_id', isEqualTo: userId).get();
+  static Future<List<Map<String, dynamic>>> getRecurringTransactions(
+      String userId) async {
+    final snap = await _db
+        .collection('recurring_transactions')
+        .where('user_id', isEqualTo: userId)
+        .get();
     return snap.docs.map((doc) {
       final d = doc.data();
       d['id'] = doc.id;
@@ -358,8 +457,12 @@ class FirestoreService {
     await docRef.set(data);
   }
 
-  static Future<void> updateRecurring(String id, Map<String, dynamic> data) async {
-    await _db.collection('recurring_transactions').doc(id).set(data, SetOptions(merge: true));
+  static Future<void> updateRecurring(
+      String id, Map<String, dynamic> data) async {
+    await _db
+        .collection('recurring_transactions')
+        .doc(id)
+        .set(data, SetOptions(merge: true));
   }
 
   static Future<void> deleteRecurring(String id) async {
@@ -367,12 +470,14 @@ class FirestoreService {
   }
 
   // ------------------ BUDGET & DUE DATE ALERTS ------------------
-  static Future<void> checkBudgetLimit(String userId, String categoryName, {String? categoryId}) async {
+  static Future<void> checkBudgetLimit(String userId, String categoryName,
+      {String? categoryId}) async {
     try {
       final budgets = await getBudgets(userId);
       final budget = budgets.firstWhere(
         (b) =>
-            (b['category']?.toString().toLowerCase() == categoryName.toLowerCase()) ||
+            (b['category']?.toString().toLowerCase() ==
+                categoryName.toLowerCase()) ||
             (categoryId != null && b['category_id']?.toString() == categoryId),
         orElse: () => {},
       );
@@ -386,8 +491,10 @@ class FirestoreService {
       double spentThisMonth = 0.0;
       for (final tx in txs) {
         if (tx['type'] == 'expense' &&
-            (tx['category']?.toString().toLowerCase() == categoryName.toLowerCase() ||
-                (categoryId != null && tx['category_id']?.toString() == categoryId))) {
+            (tx['category']?.toString().toLowerCase() ==
+                    categoryName.toLowerCase() ||
+                (categoryId != null &&
+                    tx['category_id']?.toString() == categoryId))) {
           final dStr = tx['transaction_date'] ?? tx['date'];
           if (dStr != null) {
             final d = DateTime.tryParse(dStr.toString());
@@ -408,7 +515,10 @@ class FirestoreService {
           percentage: percentage,
         );
       }
-    } catch (_) {}
+    } catch (e) {
+      // ignore: avoid_print
+      print('checkBudgetLimit failed: $e');
+    }
   }
 
   static Future<void> checkUpcomingDueDates(String userId) async {
@@ -420,7 +530,7 @@ class FirestoreService {
       for (final debt in debts) {
         final isPaid = debt['is_paid'] == true;
         final isRecurring = debt['is_recurring'] == true;
-        final recurringDay = debt['recurring_day'] as int?;
+        final recurringDay = (debt['recurring_day'] as num?)?.toInt();
         final dueStr = debt['due_date']?.toString();
 
         // Hitung target due date berikutnya
@@ -449,7 +559,7 @@ class FirestoreService {
 
         if (shouldAlert) {
           final person = debt['person_name']?.toString() ?? 'Seseorang';
-          final amount = (debt['remaining_amount'] as num?)?.toDouble() ?? 
+          final amount = (debt['remaining_amount'] as num?)?.toDouble() ??
               ((debt['amount'] as num?)?.toDouble() ?? 0.0);
           final isBorrowed = debt['type'] == 'borrowed';
 
@@ -473,6 +583,21 @@ class FirestoreService {
           );
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      // ignore: avoid_print
+      print('checkUpcomingDueDates failed: $e');
+    }
   }
+}
+
+class TransactionPage {
+  final List<Map<String, dynamic>> items;
+  final DocumentSnapshot<Map<String, dynamic>>? lastDocument;
+  final bool hasMore;
+
+  const TransactionPage({
+    required this.items,
+    required this.lastDocument,
+    required this.hasMore,
+  });
 }
