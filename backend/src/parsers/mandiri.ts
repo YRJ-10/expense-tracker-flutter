@@ -4,19 +4,8 @@ export class MandiriLivinParser implements BankEmailParser {
   bankName = 'MANDIRI';
 
   canHandle(from: string, subject: string, body: string): boolean {
-    const fromLower = from.toLowerCase();
-    const subjLower = subject.toLowerCase();
-    const bodyLower = body.toLowerCase();
-
-    const isFromMandiri = fromLower.includes('bankmandiri.co.id') || fromLower.includes('livin');
-    const isMandiriKeyword = subjLower.includes('livin') || 
-                            subjLower.includes('pembayaran') || 
-                            subjLower.includes('pembelian') || 
-                            subjLower.includes('top up') || 
-                            subjLower.includes('transfer') ||
-                            subjLower.includes('mandiri');
-
-    return isFromMandiri || (isMandiriKeyword && bodyLower.includes('bank mandiri'));
+    // Hanya email transaksi dari alamat resmi Livin' by Mandiri
+    return from.toLowerCase().includes('noreply.livin@bankmandiri.co.id');
   }
 
   parse(messageId: string, from: string, subject: string, htmlOrText: string): ParsedTransaction | null {
@@ -41,15 +30,23 @@ export class MandiriLivinParser implements BankEmailParser {
       const type: 'expense' | 'income' = isIncome ? 'income' : 'expense';
 
       // =========================================================================
-      // 2. JANGKAR NOMINAL: KAMUS SINONIM LENGKAP
+      // 2. JANGKAR NOMINAL: KAMUS SINONIM LENGKAP (WAJIB ADA SIMBOL MATA UANG)
       // =========================================================================
-      const amountRegex = /(?:Nominal\s+Transaksi|Nominal\s+Pembayaran|Nominal\s+Transfer|Nominal\s+Top\s*Up|Nominal|Jumlah\s+Transaksi|Jumlah\s+Pembayaran|Jumlah\s+Transfer|Jumlah|Total\s+Transaksi|Total\s+Pembayaran|Total\s+Tagihan|Total|Nilai\s+Transaksi|Nilai\s+Pembayaran)[\s\S]*?(?:Rp\.?|IDR)?\s*([\d\.,]+)/i;
-      let amountMatch = htmlOrText.match(amountRegex);
+      // 1. Prioritas Utama: Cari label diikuti eksplisit simbol Rp / IDR (mencegah salah tangkap atribut HTML seperti width="40%")
+      const amountRegexWithCurrency = /(?:Nominal\s+Transaksi|Nominal\s+Pembayaran|Nominal\s+Transfer|Nominal\s+Top\s*Up|Nominal|Jumlah\s+Transaksi|Jumlah\s+Pembayaran|Jumlah\s+Transfer|Jumlah|Total\s+Transaksi|Total\s+Pembayaran|Total\s+Tagihan|Total|Nilai\s+Transaksi|Nilai\s+Pembayaran)[\s\S]*?(?:Rp\.?|IDR)\s*([\d\.,]+)/i;
+      let amountMatch = htmlOrText.match(amountRegexWithCurrency);
       
-      // Fallback: Jika template berubah, cari pola nominal uang standar Indonesia
+      // 2. Cadangan: Jika label sedikit berbeda, cari pola nominal mata uang standar Indonesia (misal: Rp 50.000,00)
       if (!amountMatch) {
         amountMatch = htmlOrText.match(/(?:Rp\.?|IDR)\s*([\d]{1,3}(?:\.[\d]{3})+(?:,[\d]{2})?)/i);
       }
+
+      // 3. Cadangan Terakhir: Jika ada label perbankan setelah tanda : atau tag <td>
+      if (!amountMatch) {
+        const amountRegexLoose = /(?:Nominal\s+Transaksi|Nominal\s+Pembayaran|Nominal\s+Transfer|Nominal\s+Top\s*Up|Nominal|Jumlah\s+Transaksi|Jumlah\s+Pembayaran|Jumlah\s+Transfer|Jumlah|Total\s+Transaksi|Total\s+Pembayaran|Total\s+Tagihan|Total|Nilai\s+Transaksi|Nilai\s+Pembayaran)[\s\S]*?(?:<td[^>]*>|:)\s*([\d\.,]+)/i;
+        amountMatch = htmlOrText.match(amountRegexLoose);
+      }
+
       if (!amountMatch) {
         return null; // Tidak ada nominal uang yang valid
       }
@@ -79,15 +76,24 @@ export class MandiriLivinParser implements BankEmailParser {
       let description = type === 'income' ? 'Transfer Masuk' : 'Transaksi Mandiri';
 
       if (type === 'income') {
-        const senderRegex = /(?:Nama\s+Pengirim|Pengirim|Dari\s+Rekening|Dari)[\s\S]*?(?:<td[^>]*>|<h4[^>]*>|:)\s*([A-Za-z0-9\s\.\-_]{3,40})/i;
-        const senderMatch = htmlOrText.match(senderRegex);
+        // 1. Prioritas Utama: Pola HTML asli Mandiri yang menaruh nama di dalam <h4>
+        let senderMatch = htmlOrText.match(/(?:Nama\s+Pengirim|Pengirim|Dari\s+Rekening|Dari)[\s\S]*?<h4[^>]*>\s*([^<]+)\s*<\/h4>/i);
+        // 2. Cadangan: Jika menggunakan tabel <td> atau format teks
+        if (!senderMatch) {
+          senderMatch = htmlOrText.match(/(?:Nama\s+Pengirim|Pengirim|Dari\s+Rekening|Dari)[\s\S]*?(?:<td[^>]*>|:)\s*([^<:\n\r]{2,60})/i);
+        }
         if (senderMatch) {
-          description = `Dari ${senderMatch[1].trim()}`;
+          const sender = senderMatch[1].replace(/&amp;/g, '&').trim();
+          description = `Dari ${sender}`;
         }
       } else {
-        // Ekstraksi Pihak Tujuan / Penerima / Merchant
-        const receiverRegex = /(?:Nama\s+Penerima|Penerima|Rekening\s+Tujuan|Tujuan\s+Transfer|Tujuan|Merchant|Nama\s+Merchant|Penyedia\s+Jasa|Nama\s+Produk|Institusi|Kepada)[\s\S]*?(?:<td[^>]*>|<h4[^>]*>|:)\s*([A-Za-z0-9\s\.\-_]{3,40})/i;
-        const receiverMatch = htmlOrText.match(receiverRegex);
+        // 1. Prioritas Utama: Pola HTML asli Livin Mandiri yang menaruh penerima di dalam tag <h4>
+        let receiverMatch = htmlOrText.match(/(?:Nama\s+Penerima|Penerima|Penyedia\s+Jasa|Nama\s+Produk)[\s\S]*?<h4[^>]*>\s*([^<]+)\s*<\/h4>/i);
+
+        // 2. Cadangan: Jika template email menggunakan <td> atau label alternatif (misal: Merchant, Biller, Tujuan)
+        if (!receiverMatch) {
+          receiverMatch = htmlOrText.match(/(?:Nama\s+Penerima|Penerima|Rekening\s+Tujuan|Tujuan\s+Transfer|Penyedia\s+Jasa|Nama\s+Produk|Merchant|Nama\s+Merchant|Biller|Institusi)[\s\S]*?(?:<td[^>]*>|:)\s*([^<:\n\r]{2,60})/i);
+        }
 
         // Ekstraksi Bank Tujuan jika ada (misal: BCA, BRI, BNI)
         const bankRegex = /(?:Bank\s+Tujuan|Nama\s+Bank)[\s\S]*?(?:<td[^>]*>|<h4[^>]*>|:)\s*([A-Za-z0-9\s]{2,20})/i;
@@ -99,7 +105,7 @@ export class MandiriLivinParser implements BankEmailParser {
         const isQRIS = /qris/i.test(subjectClean) || /qris/i.test(htmlOrText);
 
         if (receiverMatch) {
-          const party = receiverMatch[1].trim();
+          const party = receiverMatch[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim();
           if (isTransfer) {
             description = targetBank ? `Transfer ke ${party} (${targetBank})` : `Transfer ke ${party}`;
           } else if (isTopUp) {

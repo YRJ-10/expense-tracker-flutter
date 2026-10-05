@@ -208,8 +208,8 @@ export default {
           }
         }
 
-        // Hardcode server-side: hanya email resmi Bank Mandiri
-        const searchQuery = `from:bankmandiri.co.id${afterDateFilter}`;
+        // Hardcode server-side: hanya email transaksi resmi Livin' by Mandiri
+        const searchQuery = `from:noreply.livin@bankmandiri.co.id${afterDateFilter}`;
         const messageIds = await gmail.listBankMessages(accessToken, searchQuery);
         const parserRegistry = new ParserRegistry();
 
