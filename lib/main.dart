@@ -18,12 +18,19 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   await initializeDateFormatting('id_ID');
-  await NotificationService.initialize();
-  await FcmService.initialize();
 
+  // Langsung tampilkan UI agar tidak tertahan dan frame pertama langsung muncul
   runApp(
     const ProviderScope(
       child: MyApp(),
     ),
   );
+
+  // Inisialisasi notifikasi berjalan di background tanpa menghalangi tampilan awal
+  NotificationService.initialize().catchError((e) {
+    debugPrint('Notification init error: $e');
+  });
+  FcmService.initialize().catchError((e) {
+    debugPrint('FCM init error: $e');
+  });
 }
