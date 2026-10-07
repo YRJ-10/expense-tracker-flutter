@@ -199,17 +199,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _showTestNotificationSheet() async {
     await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: const Color(0xFF1A1A2E),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Padding(
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Text(
                   '🧪 Uji Coba Notifikasi',
@@ -342,10 +344,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   Future<void> _showNotificationDiagnostics() async {
     final data = await NotificationService.getDiagnostics();
@@ -524,6 +527,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Navigator.pushReplacementNamed(context, '/login');
   }
 
+  String _getAccountAgeText() {
+    final creationTime =
+        FirebaseAuth.instance.currentUser?.metadata.creationTime;
+    if (creationTime == null) return 'Pengguna Baru';
+
+    final now = DateTime.now();
+    final diff = now.difference(creationTime);
+    final days = diff.inDays;
+
+    if (days < 1) {
+      return 'Akun dibuat hari ini';
+    } else if (days < 30) {
+      return 'Aktif $days hari';
+    } else if (days < 365) {
+      final months = (days / 30).floor();
+      final remainingDays = days % 30;
+      return remainingDays > 0
+          ? 'Aktif $months bulan $remainingDays hari'
+          : 'Aktif $months bulan';
+    } else {
+      final years = (days / 365).floor();
+      final months = ((days % 365) / 30).floor();
+      return months > 0
+          ? 'Aktif $years tahun $months bulan'
+          : 'Aktif $years tahun';
+    }
+  }
+
   Widget _buildFallbackInitial() {
     return Center(
       child: Text(
@@ -604,44 +635,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(
                         color: Colors.white.withOpacity(0.5), fontSize: 14),
                   ),
+                  const SizedBox(height: 8),
+
+                  // Informasi Umur Akun
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A2E),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: const Color(0xFF6C63FF).withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.history_toggle_off_rounded,
+                            size: 14, color: Color(0xFF6C63FF)),
+                        const SizedBox(width: 6),
+                        Text(
+                          _getAccountAgeText(),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 32),
 
-                  // Section Integrasi
-                  _buildSectionTitle('INTEGRASI'),
-                  ListTile(
-                    onTap: () async {
-                      await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const WalletScreen()));
-                      _loadProfile();
-                    },
-                    leading: const Icon(Icons.account_balance,
-                        color: Color(0xFF6C63FF)),
-                    title: const Text('Integrasi Mbanking',
-                        style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
-                    subtitle: Text(
-                      _syncStatus.isConnected
-                          ? 'Terhubung (${_syncStatus.email})'
-                          : 'Belum Terhubung',
-                      style: TextStyle(
-                          color: _syncStatus.isConnected
-                              ? Colors.greenAccent
-                              : Colors.orangeAccent,
-                          fontSize: 12),
-                    ),
-                    trailing:
-                        const Icon(Icons.chevron_right, color: Colors.white54),
-                    tileColor: const Color(0xFF1A1A2E),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  const SizedBox(height: 16),
-
-
-                  // Section Keamanan
-                  _buildSectionTitle('KEAMANAN'),
+                  // Section Integrasi & Keamanan
+                  _buildSectionTitle('INTEGRASI & KEAMANAN'),
                   Container(
                     decoration: BoxDecoration(
                       color: const Color(0xFF1A1A2E),
@@ -649,6 +675,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     child: Column(
                       children: [
+                        ListTile(
+                          onTap: () async {
+                            await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const WalletScreen()));
+                            _loadProfile();
+                          },
+                          leading: const Icon(Icons.account_balance,
+                              color: Color(0xFF6C63FF)),
+                          title: const Text('Integrasi Mbanking',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
+                          subtitle: Text(
+                            _syncStatus.isConnected
+                                ? 'Terhubung (${_syncStatus.email})'
+                                : 'Belum Terhubung',
+                            style: TextStyle(
+                                color: _syncStatus.isConnected
+                                    ? Colors.greenAccent
+                                    : Colors.orangeAccent,
+                                fontSize: 12),
+                          ),
+                          trailing: const Icon(Icons.chevron_right,
+                              color: Colors.white54),
+                        ),
+                        const Divider(color: Colors.white10, height: 1),
                         SwitchListTile(
                           secondary: const Icon(Icons.fingerprint,
                               color: Color(0xFF6C63FF)),
@@ -975,56 +1029,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // Tombol Simpan
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _saveProfile,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6C63FF),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: _isSaving
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              'Simpan Perubahan',
+                  // Tombol Simpan & Logout (Kiri & Kanan)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 52,
+                          child: ElevatedButton.icon(
+                            onPressed: _isSaving ? null : _saveProfile,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF6C63FF),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: _isSaving
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.save_rounded,
+                                    color: Colors.white, size: 20),
+                            label: const Text(
+                              'Simpan',
                               style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 16,
+                                  fontSize: 15,
                                   fontWeight: FontWeight.bold),
                             ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Tombol Logout
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: OutlinedButton(
-                      onPressed: _logout,
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.redAccent),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
-                      child: const Text(
-                        'Logout',
-                        style: TextStyle(
-                            color: Colors.redAccent,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SizedBox(
+                          height: 52,
+                          child: OutlinedButton.icon(
+                            onPressed: _logout,
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.redAccent),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.logout_rounded,
+                                color: Colors.redAccent, size: 20),
+                            label: const Text(
+                              'Logout',
+                              style: TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                   const SizedBox(height: 40),
                   Center(
                     child: Text(
-                      'Expense Tracker • Bank Sync v2.0',
+                      'Expense Tracker • Bank Sync v3.2.0',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.2),
                         fontSize: 12,
