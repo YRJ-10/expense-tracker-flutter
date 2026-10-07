@@ -96,9 +96,18 @@ class ReceiptScannerService {
         if (data['success'] == true && data['data'] != null) {
           return ScannedReceiptResult.fromJson(data['data']);
         }
+        throw Exception('Format data struk dari AI tidak sesuai.');
       } else {
-        final err = jsonDecode(res.body);
-        throw Exception(err['error'] ?? 'Gagal memproses struk.');
+        String errorMsg = 'Gagal memproses struk.';
+        try {
+          final err = jsonDecode(res.body);
+          if (err is Map && err['error'] != null) {
+            errorMsg = err['error'].toString();
+          }
+        } catch (_) {
+          errorMsg = 'Layanan server sedang mengalami kendala (Status ${res.statusCode}).';
+        }
+        throw Exception(errorMsg);
       }
     } catch (e) {
       rethrow;

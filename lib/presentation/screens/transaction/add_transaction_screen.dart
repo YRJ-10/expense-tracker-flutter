@@ -342,16 +342,87 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final friendlyError = _getHumanReadableScanError(e);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal scan struk: $e'),
-            backgroundColor: Colors.redAccent,
+            content: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    friendlyError,
+                    style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.3),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFFD32F2F),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
     } finally {
       if (mounted) setState(() => _isScanningReceipt = false);
     }
+  }
+
+  String _getHumanReadableScanError(dynamic error) {
+    final errStr = error.toString().toLowerCase();
+
+    // 1. Kuota atau Rate Limit Gemini AI habis
+    if (errStr.contains('429') ||
+        errStr.contains('resource has been exhausted') ||
+        errStr.contains('quota') ||
+        errStr.contains('resource_exhausted') ||
+        errStr.contains('rate limit')) {
+      return 'Kuota harian Gemini AI telah mencapai batas limit. Silakan coba lagi besok atau catat transaksi secara manual.';
+    }
+
+    // 2. Masalah Jaringan / Koneksi Internet / Timeout
+    if (errStr.contains('socketexception') ||
+        errStr.contains('clientexception') ||
+        errStr.contains('failed host lookup') ||
+        errStr.contains('connection refused') ||
+        errStr.contains('timeoutexception') ||
+        errStr.contains('network is unreachable') ||
+        errStr.contains('connection closed') ||
+        errStr.contains('handshake failed')) {
+      return 'Koneksi internet bermasalah. Pastikan perangkat Anda terhubung ke internet yang stabil.';
+    }
+
+    // 3. Masalah Kunci / Otentikasi API
+    if (errStr.contains('401') ||
+        errStr.contains('unauthorized') ||
+        errStr.contains('api_key_invalid') ||
+        errStr.contains('kunci otentikasi') ||
+        errStr.contains('gemini_api_key')) {
+      return 'Kunci otentikasi API AI belum valid atau kedaluwarsa di server.';
+    }
+
+    // 4. Struk Tidak Terbaca / Gambar Kurang Jelas
+    if (errStr.contains('gagal mengekstrak') ||
+        errStr.contains('tidak terbaca') ||
+        errStr.contains('candidate') ||
+        errStr.contains('format data struk')) {
+      return 'Struk tidak terbaca jelas oleh AI. Pastikan foto struk terang, tegak, dan nominal terlihat jelas.';
+    }
+
+    // 5. Gangguan Server Backend
+    if (errStr.contains('500') ||
+        errStr.contains('502') ||
+        errStr.contains('503') ||
+        errStr.contains('internal server error')) {
+      return 'Server AI sedang sibuk atau mengalami gangguan sementara. Silakan coba beberapa saat lagi.';
+    }
+
+    // Pembersihan prefix Exception: untuk pesan lainnya
+    final cleaned = error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+    return cleaned.isNotEmpty ? cleaned : 'Gagal memproses foto struk. Silakan coba lagi.';
   }
 
   @override
