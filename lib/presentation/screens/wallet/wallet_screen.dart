@@ -200,6 +200,7 @@ class _WalletScreenState extends State<WalletScreen> {
     final accNumberController = TextEditingController();
     String selectedBankCode = 'MANDIRI';
     String selectedIcon = '🏦';
+    bool isSubmitting = false;
 
     showModalBottomSheet(
       context: context,
@@ -340,43 +341,68 @@ class _WalletScreenState extends State<WalletScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () async {
-                          final name = nameController.text.trim();
-                          if (name.isNotEmpty) {
-                            final userId = FirestoreService.currentUserId;
-                            if (userId == null) return;
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                final name = nameController.text.trim();
+                                if (name.isNotEmpty) {
+                                  final userId = FirestoreService.currentUserId;
+                                  if (userId == null) return;
 
-                            final rawBal =
-                                balanceController.text.replaceAll('.', '');
-                            final initialBal = double.tryParse(rawBal) ?? 0.0;
+                                  final rawBal = balanceController.text
+                                      .replaceAll('.', '');
+                                  final initialBal =
+                                      double.tryParse(rawBal) ?? 0.0;
 
-                            await FirestoreService.addWallet({
-                              'user_id': userId,
-                              'name': name,
-                              'bank_name': selectedBankCode,
-                              'account_number': accNumberController.text.trim(),
-                              'initial_balance': initialBal,
-                              'balance': initialBal,
-                              'icon': selectedIcon,
-                            });
+                                  setModalState(() => isSubmitting = true);
+                                  try {
+                                    await FirestoreService.addWallet({
+                                      'user_id': userId,
+                                      'name': name,
+                                      'bank_name': selectedBankCode,
+                                      'account_number':
+                                          accNumberController.text.trim(),
+                                      'initial_balance': initialBal,
+                                      'balance': initialBal,
+                                      'icon': selectedIcon,
+                                    });
 
-                            if (context.mounted) Navigator.pop(context);
-                            _loadData();
-                          }
-                        },
+                                    if (context.mounted) Navigator.pop(context);
+                                    _loadData();
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      setModalState(() => isSubmitting = false);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Gagal menyimpan: $e'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                }
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF6C63FF),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: Text(
-                          selectedBankCode == 'CASH'
-                              ? 'Simpan Kas Tunai'
-                              : 'Simpan Rekening',
-                          style: const TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
+                        child: isSubmitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2),
+                              )
+                            : Text(
+                                selectedBankCode == 'CASH'
+                                    ? 'Simpan Kas Tunai'
+                                    : 'Simpan Rekening',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 24),

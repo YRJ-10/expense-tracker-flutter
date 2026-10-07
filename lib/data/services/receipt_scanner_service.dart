@@ -91,7 +91,7 @@ class ReceiptScannerService {
           'imageBase64': base64Image,
           'mimeType': mimeType,
         }),
-      );
+      ).timeout(const Duration(seconds: 45));
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);

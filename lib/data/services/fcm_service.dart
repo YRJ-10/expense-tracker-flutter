@@ -140,7 +140,7 @@ class FcmService {
           'cashReminderMinute': remMin,
           'timezoneOffset': timezoneOffset,
         }),
-      );
+      ).timeout(const Duration(seconds: 10));
     } catch (e) {
       debugPrint('[FCM] Error syncing token to Worker backend: $e');
     }
@@ -168,7 +168,7 @@ class FcmService {
           'title': '🔔 Tes FCM Push Berhasil!',
           'body': 'Notifikasi push cloud dari Cloudflare Worker berhasil tembus ke HP Anda!',
         }),
-      );
+      ).timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       return data;

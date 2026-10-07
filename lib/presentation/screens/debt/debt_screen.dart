@@ -57,6 +57,7 @@ class _DebtScreenState extends State<DebtScreen> {
     DateTime? dueDate;
     bool isRecurring = false;
     int recurringDay = 25;
+    bool isSubmitting = false;
 
     showModalBottomSheet(
       context: context,
@@ -379,42 +380,66 @@ class _DebtScreenState extends State<DebtScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () async {
-                          final name = nameController.text.trim();
-                          final rawAmt =
-                              amountController.text.replaceAll('.', '');
-                          final totalAmt = double.tryParse(rawAmt) ?? 0.0;
-                          if (name.isNotEmpty && totalAmt > 0) {
-                            final userId = FirestoreService.currentUserId;
-                            if (userId == null) return;
-                            await FirestoreService.addDebt({
-                              'user_id': userId,
-                              'person_name': name,
-                              'amount': totalAmt,
-                              'remaining_amount': totalAmt,
-                              'paid_amount': 0.0,
-                              'type': type,
-                              'is_paid': false,
-                              'is_recurring': isRecurring,
-                              if (isRecurring) 'recurring_day': recurringDay,
-                              if (!isRecurring && dueDate != null)
-                                'due_date':
-                                    dueDate!.toIso8601String().split('T')[0],
-                            });
-                            if (context.mounted) Navigator.pop(context);
-                            _loadData();
-                          }
-                        },
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                final name = nameController.text.trim();
+                                final rawAmt =
+                                    amountController.text.replaceAll('.', '');
+                                final totalAmt = double.tryParse(rawAmt) ?? 0.0;
+                                if (name.isNotEmpty && totalAmt > 0) {
+                                  final userId = FirestoreService.currentUserId;
+                                  if (userId == null) return;
+                                  setStateModal(() => isSubmitting = true);
+                                  try {
+                                    await FirestoreService.addDebt({
+                                      'user_id': userId,
+                                      'person_name': name,
+                                      'amount': totalAmt,
+                                      'remaining_amount': totalAmt,
+                                      'paid_amount': 0.0,
+                                      'type': type,
+                                      'is_paid': false,
+                                      'is_recurring': isRecurring,
+                                      if (isRecurring)
+                                        'recurring_day': recurringDay,
+                                      if (!isRecurring && dueDate != null)
+                                        'due_date': dueDate!
+                                            .toIso8601String()
+                                            .split('T')[0],
+                                    });
+                                    if (context.mounted) Navigator.pop(context);
+                                    _loadData();
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      setStateModal(() => isSubmitting = false);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Gagal menyimpan: $e'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                }
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF6C63FF),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('Simpan Data Utang',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold)),
+                        child: isSubmitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Text('Simpan Data Utang',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(height: 24),

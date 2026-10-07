@@ -40,12 +40,11 @@ class NotificationService {
 
     await _notificationsPlugin.initialize(initSettings);
 
-    // Minta izin notifikasi dan izin exact alarm di Android
+    // Minta izin notifikasi di Android jika belum aktif
     final androidPlatform =
         _notificationsPlugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
     await androidPlatform?.requestNotificationsPermission();
-    await androidPlatform?.requestExactAlarmsPermission();
 
     _isInitialized = true;
 
@@ -207,29 +206,13 @@ class NotificationService {
         body,
         scheduledDate,
         details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: matchDateTimeComponents,
       );
     } catch (e) {
-      debugPrint('Exact notification schedule failed for $id: $e');
-      try {
-        await _notificationsPlugin.zonedSchedule(
-          id,
-          title,
-          body,
-          scheduledDate,
-          details,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
-          matchDateTimeComponents: matchDateTimeComponents,
-        );
-      } catch (fallbackError) {
-        debugPrint(
-            'Inexact notification schedule failed for $id: $fallbackError');
-      }
+      debugPrint('Notification schedule failed for $id: $e');
     }
   }
 
