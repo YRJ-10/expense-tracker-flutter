@@ -124,12 +124,13 @@ class FcmService {
 
     // 2. Daftarkan juga ke Backend Worker Endpoint
     try {
+      final token = await AppConfig.getAuthToken();
       final url = Uri.parse('${AppConfig.backendUrl}/api/notifications/save-fcm-token');
       await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${AppConfig.workerAuthToken}',
+          'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
           'userId': user.uid,
@@ -153,12 +154,13 @@ class FcmService {
     }
 
     try {
+      final token = await AppConfig.getAuthToken();
       final url = Uri.parse('${AppConfig.backendUrl}/api/notifications/test-fcm');
       final res = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${AppConfig.workerAuthToken}',
+          'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
           'userId': user?.uid,

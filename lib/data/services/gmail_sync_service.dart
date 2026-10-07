@@ -37,7 +37,7 @@ class GmailSyncStatus {
 
 class GmailSyncService {
   static const String baseUrl = AppConfig.backendUrl;
-  static const String apiToken = AppConfig.workerAuthToken;
+  static Future<String> get apiToken async => await AppConfig.getAuthToken();
 
   // 1. Buka halaman otorisasi OAuth Gmail
   static Future<bool> connectGmail(String userId) async {
@@ -62,10 +62,11 @@ class GmailSyncService {
   // 2. Ambil status integrasi saat ini
   static Future<GmailSyncStatus> getStatus(String userId) async {
     try {
+      final token = await apiToken;
       final res = await http.get(
         Uri.parse('$baseUrl/api/status?userId=$userId'),
         headers: {
-          'Authorization': 'Bearer $apiToken',
+          'Authorization': 'Bearer $token',
         },
       );
       if (res.statusCode == 200) {
@@ -87,11 +88,12 @@ class GmailSyncService {
   // 3. Trigger proses sinkronisasi email transaksi bank
   static Future<GmailSyncResult> triggerSync(String userId, {String? query}) async {
     try {
+      final token = await apiToken;
       final res = await http.post(
         Uri.parse('$baseUrl/api/sync'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $apiToken',
+          'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
           'userId': userId,
@@ -128,11 +130,12 @@ class GmailSyncService {
     String? note,
   }) async {
     try {
+      final token = await apiToken;
       final res = await http.post(
         Uri.parse('$baseUrl/api/reconcile'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $apiToken',
+          'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
           'userId': userId,

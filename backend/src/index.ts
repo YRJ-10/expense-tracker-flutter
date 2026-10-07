@@ -4,6 +4,123 @@ import { GmailClient } from './gmail';
 import { ParserRegistry, parseWithGeminiFallback } from './parsers';
 import { FcmClient } from './fcm';
 
+// In-memory cache untuk JWKS Google & Token yang sudah diverifikasi
+let cachedJwks: { keys: any[]; expiresAt: number } | null = null;
+const verifiedTokenCache = new Map<string, { uid: string; expMs: number }>();
+
+function base64UrlDecode(str: string): string {
+  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  return atob(base64);
+}
+
+function base64UrlToUint8Array(str: string): Uint8Array {
+  const binary = base64UrlDecode(str);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function getGoogleJwks(): Promise<any[]> {
+  const now = Date.now();
+  if (cachedJwks && cachedJwks.expiresAt > now) {
+    return cachedJwks.keys;
+  }
+  try {
+    const res = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
+    if (res.ok) {
+      const data = (await res.json()) as any;
+      if (Array.isArray(data.keys)) {
+        cachedJwks = { keys: data.keys, expiresAt: now + 3600 * 1000 };
+        return data.keys;
+      }
+    }
+  } catch (e) {
+    console.error('Error fetching Google JWKS:', e);
+  }
+  return cachedJwks ? cachedJwks.keys : [];
+}
+
+async function verifyFirebaseIdToken(
+  token: string,
+  projectId: string
+): Promise<{ valid: boolean; uid?: string; error?: string }> {
+  try {
+    const now = Date.now();
+    const cached = verifiedTokenCache.get(token);
+    if (cached && cached.expMs > now) {
+      return { valid: true, uid: cached.uid };
+    }
+
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      return { valid: false, error: 'Format token bukan JWT' };
+    }
+
+    const [headerB64, payloadB64, sigB64] = parts;
+    const header = JSON.parse(base64UrlDecode(headerB64));
+    const payload = JSON.parse(base64UrlDecode(payloadB64));
+
+    const expMs = (Number(payload.exp) || 0) * 1000;
+    if (expMs <= now) {
+      return { valid: false, error: 'Firebase ID Token kedaluwarsa' };
+    }
+
+    const expectedIss = `https://securetoken.google.com/${projectId}`;
+    if (payload.iss !== expectedIss) {
+      return { valid: false, error: 'Issuer token tidak valid' };
+    }
+
+    if (payload.aud !== projectId) {
+      return { valid: false, error: 'Audience token tidak sesuai' };
+    }
+
+    if (!payload.sub || typeof payload.sub !== 'string') {
+      return { valid: false, error: 'Subject (UID) tidak valid' };
+    }
+
+    // Verifikasi Signature via Google JWKS
+    const jwks = await getGoogleJwks();
+    const matchingKey = jwks.find((k: any) => k.kid === header.kid);
+    if (!matchingKey) {
+      return { valid: false, error: 'Public key Google tidak ditemukan' };
+    }
+
+    const cryptoKey = await crypto.subtle.importKey(
+      'jwk',
+      matchingKey,
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+
+    const dataToVerify = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+    const signatureBytes = base64UrlToUint8Array(sigB64);
+
+    const isSigValid = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      cryptoKey,
+      signatureBytes,
+      dataToVerify
+    );
+
+    if (!isSigValid) {
+      return { valid: false, error: 'Signature kriptografi token tidak valid' };
+    }
+
+    const cacheDuration = Math.min(5 * 60 * 1000, Math.max(0, expMs - now));
+    verifiedTokenCache.set(token, { uid: payload.sub, expMs: now + cacheDuration });
+
+    return { valid: true, uid: payload.sub };
+  } catch (err: any) {
+    return { valid: false, error: `Validasi gagal: ${err.message}` };
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -21,22 +138,27 @@ export default {
     }
 
     try {
-      // Helper untuk validasi API Secret Bearer Token
-      const isAuthorized = (): boolean => {
+      // 0. Security Guard: Gembok semua endpoint /api/* dengan Firebase ID Token
+      let authUserUid = '';
+      if (path.startsWith('/api/')) {
         const authHeader = request.headers.get('Authorization') || '';
         const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-        const validToken = env.WORKER_AUTH_TOKEN;
-        return !!validToken && token.length > 0 && token === validToken;
-      };
 
-      // 0. Security Guard: Gembok semua endpoint /api/* dengan Bearer Auth
-      if (path.startsWith('/api/')) {
-        if (!isAuthorized()) {
+        if (!token) {
           return new Response(
-            JSON.stringify({ error: 'Unauthorized: Akses ditolak. Kunci otentikasi tidak valid.' }),
+            JSON.stringify({ error: 'Unauthorized: Header Authorization tidak ditemukan.' }),
             { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
+
+        const auth = await verifyFirebaseIdToken(token, env.FIREBASE_PROJECT_ID);
+        if (!auth.valid || !auth.uid) {
+          return new Response(
+            JSON.stringify({ error: `Unauthorized: ${auth.error || 'Akses ditolak.'}` }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        authUserUid = auth.uid;
       }
 
       // 1. Health Check
@@ -163,14 +285,15 @@ export default {
 
       // 4. API Sync: Trigger sinkronisasi email dan update transaksi
       if (path === '/api/sync' && request.method === 'POST') {
-        const body = (await request.json()) as { userId: string };
-        const userId = body.userId;
-        if (!userId) {
-          return new Response(JSON.stringify({ error: 'userId is required' }), {
-            status: 400,
+        const body = (await request.json()) as { userId?: string };
+        const requestedUserId = body.userId;
+        if (requestedUserId && requestedUserId !== authUserUid) {
+          return new Response(JSON.stringify({ error: 'Forbidden: Tidak diizinkan mengakses data user lain.' }), {
+            status: 403,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
+        const userId = authUserUid;
 
         const firestore = new FirestoreClient(env);
         const integration = await firestore.getDocument('gmail_integrations', userId);
@@ -275,13 +398,14 @@ export default {
 
       // 5. API Status: Cek status integrasi Gmail
       if (path === '/api/status' && request.method === 'GET') {
-        const userId = url.searchParams.get('userId');
-        if (!userId) {
-          return new Response(JSON.stringify({ error: 'userId is required' }), {
-            status: 400,
+        const queryUserId = url.searchParams.get('userId');
+        if (queryUserId && queryUserId !== authUserUid) {
+          return new Response(JSON.stringify({ error: 'Forbidden: Tidak diizinkan mengakses data user lain.' }), {
+            status: 403,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
+        const userId = authUserUid;
 
         const firestore = new FirestoreClient(env);
         const integration = await firestore.getDocument('gmail_integrations', userId);
@@ -309,9 +433,16 @@ export default {
 
       // 6. API Reconcile: Rekonsiliasi saldo aktual vs saldo aplikasi
       if (path === '/api/reconcile' && request.method === 'POST') {
-        const { userId, walletId, actualBalance, note } = (await request.json()) as any;
-        if (!userId || !walletId || actualBalance === undefined) {
-          return new Response(JSON.stringify({ error: 'userId, walletId, and actualBalance required' }), {
+        const { userId: bodyUserId, walletId, actualBalance, note } = (await request.json()) as any;
+        if (bodyUserId && bodyUserId !== authUserUid) {
+          return new Response(JSON.stringify({ error: 'Forbidden: Tidak diizinkan mengakses data user lain.' }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const userId = authUserUid;
+        if (!walletId || actualBalance === undefined) {
+          return new Response(JSON.stringify({ error: 'walletId and actualBalance required' }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
@@ -499,11 +630,18 @@ Format output WAJIB JSON persis seperti ini:
       // 9. Simpan FCM Token & Preferensi Pengingat User
       if (path === '/api/notifications/save-fcm-token' && request.method === 'POST') {
         const body = (await request.json()) as any;
-        const { userId, fcmToken, cashReminderEnabled, cashReminderHour, cashReminderMinute, timezoneOffset } = body;
+        const { userId: bodyUserId, fcmToken, cashReminderEnabled, cashReminderHour, cashReminderMinute, timezoneOffset } = body;
+        if (bodyUserId && bodyUserId !== authUserUid) {
+          return new Response(JSON.stringify({ error: 'Forbidden: Tidak diizinkan mengakses data user lain.' }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const userId = authUserUid;
 
-        if (!userId || !fcmToken) {
+        if (!fcmToken) {
           return new Response(
-            JSON.stringify({ error: 'userId dan fcmToken wajib diisi.' }),
+            JSON.stringify({ error: 'fcmToken wajib diisi.' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }

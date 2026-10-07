@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:expense_tracker_flutter/config/app_config.dart';
 import 'package:expense_tracker_flutter/data/services/gmail_sync_service.dart';
 
 class ScannedReceiptResult {
@@ -79,11 +80,12 @@ class ReceiptScannerService {
         mimeType = 'image/webp';
       }
 
+      final token = await AppConfig.getAuthToken();
       final res = await http.post(
-        Uri.parse('${GmailSyncService.baseUrl}/api/scan-receipt'),
+        Uri.parse('${AppConfig.backendUrl}/api/scan-receipt'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${GmailSyncService.apiToken}',
+          'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
           'imageBase64': base64Image,
