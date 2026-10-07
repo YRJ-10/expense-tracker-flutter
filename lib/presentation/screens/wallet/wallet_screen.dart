@@ -726,7 +726,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 const SizedBox(width: 6),
                 Text(
                   _syncStatus.lastSyncedAt != null
-                      ? 'Terakhir sync: ${DateFormat('dd MMM HH:mm').format(DateTime.parse(_syncStatus.lastSyncedAt!))}'
+                      ? 'Terakhir sync: ${DateFormat('dd MMM HH:mm').format(DateTime.parse(_syncStatus.lastSyncedAt!).toLocal())} WIB'
                       : 'Belum pernah sinkronisasi',
                   style: TextStyle(
                       color: Colors.white.withOpacity(0.6), fontSize: 12),
