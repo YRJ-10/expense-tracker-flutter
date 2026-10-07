@@ -381,69 +381,125 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           children: [
             // Banner AI Scan Struk
             Container(
-              margin: const EdgeInsets.only(bottom: 20),
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFF6C63FF).withValues(alpha: 0.18),
+                    const Color(0xFF6C63FF).withValues(alpha: 0.12),
                     const Color(0xFF1A1A2E),
                   ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: const Color(0xFF6C63FF).withValues(alpha: 0.35),
+                  color: const Color(0xFF6C63FF).withValues(alpha: 0.3),
                 ),
               ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: _isLoading || _isScanningReceipt ? null : _showScanReceiptOptions,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF6C63FF).withValues(alpha: 0.25),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.auto_awesome, color: Color(0xFF6C63FF), size: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6C63FF).withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Scan Struk Otomatis (Gemini AI)',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
+                        child: const Icon(Icons.auto_awesome, color: Color(0xFF6C63FF), size: 16),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Scan Struk Otomatis (Gemini AI)',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
                               ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Foto nota/kuitansi untuk mengisi form otomatis',
-                                style: TextStyle(color: Colors.white54, fontSize: 11),
-                              ),
-                            ],
-                          ),
+                            ),
+                            SizedBox(height: 1),
+                            Text(
+                              'Foto nota/kuitansi untuk mengisi form otomatis',
+                              style: TextStyle(color: Colors.white54, fontSize: 11),
+                            ),
+                          ],
                         ),
-                        if (_isScanningReceipt)
-                          const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6C63FF)),
-                          )
-                        else
-                          const Icon(Icons.camera_alt_outlined, color: Color(0xFF6C63FF), size: 20),
-                      ],
-                    ),
+                      ),
+                      if (_isScanningReceipt)
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF6C63FF)),
+                        ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _isLoading || _isScanningReceipt
+                              ? null
+                              : () => _scanReceipt(true),
+                          icon: const Icon(Icons.camera_alt_outlined, size: 16, color: Color(0xFF6C63FF)),
+                          label: const Text(
+                            'Kamera',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.10),
+                            foregroundColor: Colors.white,
+                            side: BorderSide(color: const Color(0xFF6C63FF).withValues(alpha: 0.35)),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            minimumSize: const Size(0, 36),
+                            visualDensity: VisualDensity.compact,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _isLoading || _isScanningReceipt
+                              ? null
+                              : () => _scanReceipt(false),
+                          icon: const Icon(Icons.photo_library_outlined, size: 16, color: Color(0xFF6C63FF)),
+                          label: const Text(
+                            'Pilih Foto',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: const Color(0xFF6C63FF).withValues(alpha: 0.10),
+                            foregroundColor: Colors.white,
+                            side: BorderSide(color: const Color(0xFF6C63FF).withValues(alpha: 0.35)),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            minimumSize: const Size(0, 36),
+                            visualDensity: VisualDensity.compact,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
             Container(
