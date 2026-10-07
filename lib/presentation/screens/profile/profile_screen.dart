@@ -5,6 +5,7 @@ import 'package:expense_tracker_flutter/data/services/firestore_service.dart';
 import 'package:expense_tracker_flutter/data/services/gmail_sync_service.dart';
 import 'package:expense_tracker_flutter/data/services/biometric_service.dart';
 import 'package:expense_tracker_flutter/data/services/notification_service.dart';
+import 'package:expense_tracker_flutter/data/services/fcm_service.dart';
 import 'package:expense_tracker_flutter/presentation/screens/recurring/recurring_screen.dart';
 import 'package:expense_tracker_flutter/presentation/screens/wallet/wallet_screen.dart';
 
@@ -99,6 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (picked != null) {
       await NotificationService.setCashReminderTime(picked);
+      await FcmService.syncTokenAndPreferences(hour: picked.hour, minute: picked.minute);
       if (mounted) {
         setState(() => _cashReminderTime = picked);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -306,6 +308,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   }
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.cloud_done_outlined,
+                    color: Colors.lightBlueAccent),
+                title: const Text('Tes Push FCM Cloud (Langsung)',
+                    style: TextStyle(color: Colors.white)),
+                subtitle: const Text(
+                    'Kirim push notifikasi via Cloudflare Worker ke HP ini',
+                    style: TextStyle(color: Colors.white38, fontSize: 11)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Mengirim sinyal FCM dari cloud...'),
+                      backgroundColor: Color(0xFF6C63FF),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  final res = await FcmService.testPushNotification();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(res['success'] == true
+                            ? '✅ Push FCM berhasil terkirim dari Cloudflare ke HP Anda!'
+                            : '❌ Gagal kirim FCM: ${res['error']}'),
+                        backgroundColor: res['success'] == true
+                            ? Colors.green
+                            : Colors.redAccent,
+                        duration: const Duration(seconds: 4),
+                      ),
+                    );
+                  }
+                },
+              ),
             ],
           ),
         );
@@ -317,12 +352,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final data = await NotificationService.getDiagnostics();
     if (!mounted) return;
 
+    final hasFcm = FcmService.currentToken != null;
+    final fcmTokenDisplay = hasFcm
+        ? '${FcmService.currentToken!.substring(0, 15)}... (Aktif)'
+        : 'Belum terdaftar';
+
     final pending = (data['pending'] as List<dynamic>)
         .map((p) => 'ID ${p['id']}: ${p['title']}')
         .join('\n');
     final message = [
       'Zona waktu: ${data['timezone']}',
       'Jam app: ${data['localNow']}',
+      'FCM Push Cloud: $fcmTokenDisplay',
       'Pengingat tunai: ${data['cashReminderEnabled'] ? 'Aktif' : 'Nonaktif'} (${data['cashReminderTime']})',
       'Jadwal tunai berikutnya: ${data['nextCashReminder']}',
       'Exact alarm: ${data['exactAlarmAllowed'] == null ? 'Tidak terbaca' : (data['exactAlarmAllowed'] ? 'Diizinkan' : 'Tidak diizinkan')}',
@@ -403,6 +444,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _toggleCashReminder(bool allow) async {
     await NotificationService.setCashReminderEnabled(allow);
+    await FcmService.syncTokenAndPreferences(enabled: allow);
     if (mounted) {
       setState(() => _cashReminderEnabled = allow);
     }

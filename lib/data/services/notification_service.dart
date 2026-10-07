@@ -49,10 +49,8 @@ class NotificationService {
 
     _isInitialized = true;
 
-    // Jadwalkan pengingat harian jika aktif
-    if (await isCashReminderEnabled()) {
-      await scheduleDailyCashReminder();
-    }
+    // Batalkan alarm lokal ID 1001 agar pengingat sepenuhnya ditangani FCM Cloud
+    await cancelNotification(1001);
   }
 
   // --- PREFERENSI NOTIFIKASI PENGINGAT TUNAI ---
@@ -64,11 +62,7 @@ class NotificationService {
   static Future<void> setCashReminderEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyCashReminder, enabled);
-    if (enabled) {
-      await scheduleDailyCashReminder();
-    } else {
-      await cancelNotification(1001); // ID untuk pengingat tunai
-    }
+    await cancelNotification(1001);
   }
 
   static Future<TimeOfDay> getCashReminderTime() async {
@@ -82,9 +76,7 @@ class NotificationService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyCashReminderHour, time.hour);
     await prefs.setInt(_keyCashReminderMinute, time.minute);
-    if (await isCashReminderEnabled()) {
-      await scheduleDailyCashReminder();
-    }
+    await cancelNotification(1001);
   }
 
   // --- PREFERENSI NOTIFIKASI ANGGARAN ---
@@ -195,44 +187,9 @@ class NotificationService {
   }
 
   // --- PENGINGAT TRANSAKSI TUNAI (HARIAN CUSTOM JAM & MENIT) ---
+  // Pengingat harian kini sepenuhnya ditangani via FCM Cloud. Fungsi ini memastikan alarm lokal lama dibatalkan.
   static Future<void> scheduleDailyCashReminder() async {
-    try {
-      const androidDetails = AndroidNotificationDetails(
-        'cash_reminder_channel',
-        'Pengingat Transaksi Tunai',
-        channelDescription:
-            'Mengingatkan untuk mencatat pengeluaran tunai setiap malam',
-        importance: Importance.high,
-        priority: Priority.high,
-      );
-
-      final reminderTime = await getCashReminderTime();
-      final now = tz.TZDateTime.now(tz.local);
-      var scheduledDate = tz.TZDateTime(
-        tz.local,
-        now.year,
-        now.month,
-        now.day,
-        reminderTime.hour,
-        reminderTime.minute,
-      );
-
-      if (scheduledDate.isBefore(now)) {
-        scheduledDate = scheduledDate.add(const Duration(days: 1));
-      }
-
-      await _scheduleNotificationSafe(
-        id: 1001,
-        title: 'Pengingat Pengeluaran Tunai 💵',
-        body:
-            'Ada transaksi tunai atau jajan hari ini yang belum dicatat di aplikasi?',
-        scheduledDate: scheduledDate,
-        details: const NotificationDetails(android: androidDetails),
-        matchDateTimeComponents: DateTimeComponents.time,
-      );
-    } catch (e) {
-      debugPrint('scheduleDailyCashReminder failed: $e');
-    }
+    await cancelNotification(1001);
   }
 
   static Future<void> _scheduleNotificationSafe({

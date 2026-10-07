@@ -13,7 +13,7 @@ export class FirestoreClient {
     this.privateKey = (env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
   }
 
-  private async getAccessToken(): Promise<string> {
+  public async getAccessToken(): Promise<string> {
     const now = Math.floor(Date.now() / 1000);
     if (this.cachedToken && this.cachedToken.expiresAt > now + 60) {
       return this.cachedToken.token;
@@ -22,7 +22,7 @@ export class FirestoreClient {
     const header = { alg: 'RS256', typ: 'JWT' };
     const payload = {
       iss: this.clientEmail,
-      scope: 'https://www.googleapis.com/auth/datastore',
+      scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/firebase.messaging',
       aud: 'https://oauth2.googleapis.com/token',
       exp: now + 3600,
       iat: now,
@@ -344,5 +344,27 @@ export class FirestoreClient {
     }
 
     return true;
+  }
+
+  // Ambil semua dokumen dalam suatu collection (misal: users untuk pengecekan reminder)
+  async getAllDocuments(collection: string): Promise<Array<{ id: string; data: Record<string, any> }>> {
+    const token = await this.getAccessToken();
+    const res = await fetch(`${this.baseUrl}/${collection}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      console.error(`List documents error (${res.status}):`, await res.text());
+      return [];
+    }
+    const data = (await res.json()) as { documents?: Array<{ name: string; fields?: Record<string, any> }> };
+    if (!data.documents) return [];
+    return data.documents.map((doc) => {
+      const parts = doc.name.split('/');
+      const id = parts[parts.length - 1];
+      return {
+        id,
+        data: this.fromFirestoreFields(doc.fields || {}),
+      };
+    });
   }
 }

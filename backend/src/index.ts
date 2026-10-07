@@ -2,6 +2,7 @@ import { Env } from './types';
 import { FirestoreClient } from './firestore';
 import { GmailClient } from './gmail';
 import { ParserRegistry, parseWithGeminiFallback } from './parsers';
+import { FcmClient } from './fcm';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -489,6 +490,87 @@ Format output WAJIB JSON persis seperti ini:
         );
       }
 
+      // 9. Simpan FCM Token & Preferensi Pengingat User
+      if (path === '/api/notifications/save-fcm-token' && request.method === 'POST') {
+        const body = (await request.json()) as any;
+        const { userId, fcmToken, cashReminderEnabled, cashReminderHour, cashReminderMinute, timezoneOffset } = body;
+
+        if (!userId || !fcmToken) {
+          return new Response(
+            JSON.stringify({ error: 'userId dan fcmToken wajib diisi.' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const firestore = new FirestoreClient(env);
+        const existing = (await firestore.getDocument('users', userId)) || {};
+
+        await firestore.setDocument('users', userId, {
+          ...existing,
+          fcm_token: fcmToken,
+          fcm_token_updated_at: new Date().toISOString(),
+          cash_reminder_enabled: cashReminderEnabled !== undefined ? cashReminderEnabled : existing.cash_reminder_enabled ?? true,
+          cash_reminder_hour: cashReminderHour !== undefined ? cashReminderHour : existing.cash_reminder_hour ?? 22,
+          cash_reminder_minute: cashReminderMinute !== undefined ? cashReminderMinute : existing.cash_reminder_minute ?? 0,
+          timezone_offset: timezoneOffset !== undefined ? timezoneOffset : existing.timezone_offset ?? 420,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'FCM Token dan jadwal pengingat berhasil disimpan.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // 10. Tes Pengiriman FCM Langsung ke HP
+      if (path === '/api/notifications/test-fcm' && request.method === 'POST') {
+        const body = (await request.json()) as any;
+        const { token, userId, title, body: msgBody } = body;
+
+        let targetToken = token;
+        const firestore = new FirestoreClient(env);
+
+        if (!targetToken && userId) {
+          const userDoc = await firestore.getDocument('users', userId);
+          targetToken = userDoc?.fcm_token;
+        }
+
+        if (!targetToken) {
+          return new Response(
+            JSON.stringify({ error: 'Token FCM tidak ditemukan untuk user ini.' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const fcm = new FcmClient(env, firestore);
+        const res = await fcm.sendNotification({
+          token: targetToken,
+          title: title || '🔔 Tes FCM Expense Tracker Berhasil!',
+          body: msgBody || 'Notifikasi cloud berhasil terkirim dan diterima langsung di HP Anda.',
+          channelId: 'cash_reminder_channel',
+          data: {
+            type: 'TEST_NOTIFICATION',
+            timestamp: new Date().toISOString(),
+          },
+        });
+
+        return new Response(
+          JSON.stringify(res),
+          { status: res.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // 11. Trigger Manual Pengecekan Pengingat Tunai
+      if (path === '/api/notifications/trigger-reminders' && request.method === 'POST') {
+        const firestore = new FirestoreClient(env);
+        const fcm = new FcmClient(env, firestore);
+        const res = await fcm.processCashReminders();
+
+        return new Response(
+          JSON.stringify({ success: true, ...res }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       return new Response('Not Found', { status: 404 });
     } catch (err: any) {
       console.error('Worker request error:', err);
@@ -499,5 +581,13 @@ Format output WAJIB JSON persis seperti ini:
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+  },
+
+  // Handler Otomatis Cron Triggers Cloudflare Workers (Jalan Berkala)
+  async scheduled(event: any, env: Env, ctx: any): Promise<void> {
+    const firestore = new FirestoreClient(env);
+    const fcm = new FcmClient(env, firestore);
+    const res = await fcm.processCashReminders();
+    console.log(`[CRON] Processed cash reminders: sent ${res.sentCount}, errors: ${res.errors.length}`);
   },
 };
