@@ -639,8 +639,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 t['transaction_date'] ?? t['date'] ?? '';
                             final String displayDate = rawDate.isNotEmpty
                                 ? DateFormat('dd MMM yyyy, HH:mm').format(
-                                    DateTime.tryParse(rawDate) ??
-                                        DateTime.now())
+                                    (DateTime.tryParse(rawDate) ??
+                                            DateTime.now())
+                                        .toLocal())
                                 : '';
 
                             return Dismissible(
