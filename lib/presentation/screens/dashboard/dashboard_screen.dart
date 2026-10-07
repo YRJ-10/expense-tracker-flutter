@@ -5,6 +5,7 @@ import 'package:expense_tracker_flutter/presentation/screens/wallet/wallet_scree
 import 'package:expense_tracker_flutter/presentation/screens/budget/budget_screen.dart';
 import 'package:expense_tracker_flutter/presentation/screens/goals/goals_screen.dart';
 import 'package:expense_tracker_flutter/presentation/screens/debt/debt_screen.dart';
+import 'package:expense_tracker_flutter/presentation/screens/recurring/recurring_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final VoidCallback? onNavigateToHistory;
@@ -32,9 +33,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData().then((_) {
-      _silentAutoSync();
-    });
+    _checkRecurringAndLoadData();
+  }
+
+  Future<void> _checkRecurringAndLoadData() async {
+    final userId = FirestoreService.currentUserId;
+    if (userId != null) {
+      try {
+        final executed = await FirestoreService.processDueRecurringTransactions(userId);
+        if (executed.isNotEmpty && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Auto-catat: ${executed.length} transaksi rutin dieksekusi (${executed.join(', ')})'),
+              backgroundColor: const Color(0xFF6C63FF),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } catch (_) {}
+    }
+    await _loadData();
+    _silentAutoSync();
   }
 
   Future<void> _loadData() async {
@@ -216,25 +235,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildFeatureBtn(BuildContext context, IconData icon, String label, Widget screen) {
-    return GestureDetector(
-      onTap: () async {
-        await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-        _loadData();
-      },
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A2E),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.05)),
+    return Expanded(
+      child: GestureDetector(
+        onTap: () async {
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+          _loadData();
+        },
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 4),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A2E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withOpacity(0.05)),
+              ),
+              child: Icon(icon, color: const Color(0xFF6C63FF), size: 24),
             ),
-            child: Icon(icon, color: const Color(0xFF6C63FF), size: 28),
-          ),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
-        ],
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -599,12 +627,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(height: 16),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         _buildFeatureBtn(context, Icons.account_balance_wallet, 'Dompet', const WalletScreen()),
+                        const SizedBox(width: 8),
                         _buildFeatureBtn(context, Icons.account_balance, 'Anggaran', const BudgetScreen()),
+                        const SizedBox(width: 8),
                         _buildFeatureBtn(context, Icons.flag, 'Target', const GoalsScreen()),
+                        const SizedBox(width: 8),
                         _buildFeatureBtn(context, Icons.handshake, 'Utang', const DebtScreen()),
+                        const SizedBox(width: 8),
+                        _buildFeatureBtn(context, Icons.autorenew, 'Rutin', const RecurringScreen()),
                       ],
                     ),
                     const SizedBox(height: 32),

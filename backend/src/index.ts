@@ -221,10 +221,16 @@ export default {
           const msg = await gmail.getMessage(accessToken, msgId);
           if (!msg) continue;
 
-          let parsed = parserRegistry.parseEmail(msgId, msg.from, msg.subject, msg.body);
-          if (!parsed && env.GEMINI_API_KEY) {
-            // Layer 2: Fallback ke Gemini AI jika regex tidak mengenali layout email
+          let parsed: ParsedTransaction | null = null;
+
+          // 1. Prioritas Utama (AI-First): Gemini dengan Waterfall Fallback (3.8 -> 3.5 -> 3.1 -> 2.5)
+          if (env.GEMINI_API_KEY) {
             parsed = await parseWithGeminiFallback(msgId, msg.from, msg.subject, msg.body, env.GEMINI_API_KEY);
+          }
+
+          // 2. Jaring Pengaman (Fallback): Regex Parser jika AI tidak mengembalikan hasil
+          if (!parsed) {
+            parsed = parserRegistry.parseEmail(msgId, msg.from, msg.subject, msg.body);
           }
 
           if (parsed) {

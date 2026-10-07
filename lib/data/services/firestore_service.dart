@@ -443,11 +443,20 @@ class FirestoreService {
         .collection('recurring_transactions')
         .where('user_id', isEqualTo: userId)
         .get();
-    return snap.docs.map((doc) {
+    final list = snap.docs.map((doc) {
       final d = doc.data();
       d['id'] = doc.id;
       return d;
     }).toList();
+    list.sort((a, b) {
+      final bool aActive = a['is_active'] ?? true;
+      final bool bActive = b['is_active'] ?? true;
+      if (aActive != bActive) return aActive ? -1 : 1;
+      final aDue = a['next_due_date']?.toString() ?? '';
+      final bDue = b['next_due_date']?.toString() ?? '';
+      return aDue.compareTo(bDue);
+    });
+    return list;
   }
 
   static Future<void> addRecurring(Map<String, dynamic> data) async {
@@ -459,6 +468,7 @@ class FirestoreService {
 
   static Future<void> updateRecurring(
       String id, Map<String, dynamic> data) async {
+    data['updated_at'] = DateTime.now().toIso8601String();
     await _db
         .collection('recurring_transactions')
         .doc(id)
@@ -467,6 +477,140 @@ class FirestoreService {
 
   static Future<void> deleteRecurring(String id) async {
     await _db.collection('recurring_transactions').doc(id).delete();
+  }
+
+  static DateTime calculateNextDueDate({
+    required String frequency,
+    required DateTime fromDate,
+    int? dayOfMonth,
+  }) {
+    switch (frequency.toLowerCase()) {
+      case 'daily':
+      case 'harian':
+        return fromDate.add(const Duration(days: 1));
+      case 'weekly':
+      case 'mingguan':
+        return fromDate.add(const Duration(days: 7));
+      case 'yearly':
+      case 'tahunan':
+        int targetDay = dayOfMonth ?? fromDate.day;
+        int targetMonth = fromDate.month;
+        int targetYear = fromDate.year + 1;
+        final maxDays = DateTime(targetYear, targetMonth + 1, 0).day;
+        if (targetDay > maxDays) targetDay = maxDays;
+        return DateTime(targetYear, targetMonth, targetDay, fromDate.hour, fromDate.minute);
+      case 'monthly':
+      case 'bulanan':
+      default:
+        int targetDay = dayOfMonth ?? fromDate.day;
+        int nextMonth = fromDate.month + 1;
+        int year = fromDate.year;
+        if (nextMonth > 12) {
+          year += 1;
+          nextMonth = 1;
+        }
+        final maxDays = DateTime(year, nextMonth + 1, 0).day;
+        if (targetDay > maxDays) targetDay = maxDays;
+        return DateTime(year, nextMonth, targetDay, fromDate.hour, fromDate.minute);
+    }
+  }
+
+  static Future<bool> executeRecurringTransaction({
+    required String recurringId,
+    required String userId,
+    DateTime? executionDate,
+    bool isManualTrigger = false,
+  }) async {
+    final doc =
+        await _db.collection('recurring_transactions').doc(recurringId).get();
+    if (!doc.exists) return false;
+    final data = doc.data()!;
+    final double amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
+    final String type = data['type'] ?? 'expense';
+    final String name = data['name'] ?? data['title'] ?? 'Transaksi Rutin';
+    final String? walletId = data['wallet_id'];
+    final String category =
+        data['category'] ?? (type == 'expense' ? 'Tagihan' : 'Gaji');
+    final String? categoryId = data['category_id'];
+    final String frequency = data['frequency'] ?? 'monthly';
+    final int? dayOfMonth = data['day_of_month'] as int?;
+
+    final now = executionDate ?? DateTime.now();
+
+    // 1. Add transaction
+    await addTransaction({
+      'user_id': userId,
+      'wallet_id': walletId,
+      'amount': amount,
+      'type': type,
+      'category': category,
+      'category_id': categoryId,
+      'note': 'Transaksi Rutin: $name',
+      'description': name,
+      'date': now.toIso8601String().split('T')[0],
+      'transaction_date': now.toIso8601String(),
+      'source': isManualTrigger ? 'MANUAL_RECURRING' : 'AUTO_RECURRING',
+      'recurring_id': recurringId,
+    });
+
+    // 2. Advance next_due_date
+    DateTime currentNextDue =
+        DateTime.tryParse(data['next_due_date']?.toString() ?? '') ?? now;
+    DateTime nextDue = calculateNextDueDate(
+      frequency: frequency,
+      fromDate: currentNextDue,
+      dayOfMonth: dayOfMonth,
+    );
+    while (nextDue.isBefore(DateTime(now.year, now.month, now.day + 1))) {
+      nextDue = calculateNextDueDate(
+        frequency: frequency,
+        fromDate: nextDue,
+        dayOfMonth: dayOfMonth,
+      );
+    }
+
+    // 3. Update recurring record
+    await _db.collection('recurring_transactions').doc(recurringId).set({
+      'next_due_date': nextDue.toIso8601String(),
+      'last_executed_at': now.toIso8601String(),
+    }, SetOptions(merge: true));
+
+    return true;
+  }
+
+  static Future<List<String>> processDueRecurringTransactions(
+      String userId) async {
+    final recurringList = await getRecurringTransactions(userId);
+    final now = DateTime.now();
+    final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    final List<String> executedNames = [];
+
+    for (final r in recurringList) {
+      if (r['is_active'] == false) continue;
+      if (r['auto_record'] != true) continue;
+
+      final nextDueStr = r['next_due_date']?.toString();
+      if (nextDueStr == null) continue;
+      final nextDue = DateTime.tryParse(nextDueStr);
+      if (nextDue == null) continue;
+
+      if (nextDue.isBefore(todayEnd) || nextDue.isAtSameMomentAs(todayEnd)) {
+        final id = r['id']?.toString();
+        if (id != null) {
+          final success = await executeRecurringTransaction(
+            recurringId: id,
+            userId: userId,
+            executionDate: now,
+            isManualTrigger: false,
+          );
+          if (success) {
+            executedNames.add(r['name'] ?? r['title'] ?? 'Transaksi Rutin');
+          }
+        }
+      }
+    }
+
+    return executedNames;
   }
 
   // ------------------ BUDGET & DUE DATE ALERTS ------------------
@@ -478,12 +622,21 @@ class FirestoreService {
         (b) =>
             (b['category']?.toString().toLowerCase() ==
                 categoryName.toLowerCase()) ||
-            (categoryId != null && b['category_id']?.toString() == categoryId),
+            (b['category_name']?.toString().toLowerCase() ==
+                categoryName.toLowerCase()) ||
+            (b['custom_category_name']?.toString().toLowerCase() ==
+                categoryName.toLowerCase()) ||
+            (categoryId != null &&
+                b['category_id']?.toString() == categoryId &&
+                (b['custom_category_name'] == null ||
+                    b['custom_category_name'].toString().isEmpty)),
         orElse: () => {},
       );
       if (budget.isEmpty) return;
 
-      final limit = (budget['amount'] as num?)?.toDouble() ?? 0.0;
+      final limit = (budget['limit_amount'] as num?)?.toDouble() ??
+          (budget['amount'] as num?)?.toDouble() ??
+          0.0;
       if (limit <= 0) return;
 
       final now = DateTime.now();

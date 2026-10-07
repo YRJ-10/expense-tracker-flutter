@@ -6,7 +6,6 @@ import 'package:expense_tracker_flutter/data/services/gmail_sync_service.dart';
 import 'package:expense_tracker_flutter/data/services/biometric_service.dart';
 import 'package:expense_tracker_flutter/data/services/notification_service.dart';
 import 'package:expense_tracker_flutter/data/services/fcm_service.dart';
-import 'package:expense_tracker_flutter/presentation/screens/recurring/recurring_screen.dart';
 import 'package:expense_tracker_flutter/presentation/screens/wallet/wallet_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -640,25 +639,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Section Perulangan
-                  _buildSectionTitle('PERULANGAN'),
-                  ListTile(
-                    onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const RecurringScreen())),
-                    leading:
-                        const Icon(Icons.autorenew, color: Color(0xFF6C63FF)),
-                    title: const Text('Transaksi Rutin',
-                        style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
-                    trailing:
-                        const Icon(Icons.chevron_right, color: Colors.white54),
-                    tileColor: const Color(0xFF1A1A2E),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  const SizedBox(height: 16),
 
                   // Section Keamanan
                   _buildSectionTitle('KEAMANAN'),

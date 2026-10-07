@@ -153,12 +153,20 @@ class _BudgetScreenState extends State<BudgetScreen> {
     int count = 0;
     for (final b in prevBudgets) {
       // Periksa apakah kategori sudah ada di bulan sekarang
-      final alreadyExists = _budgets.any((curr) => curr['category_id'] == b['category_id']);
+      final alreadyExists = _budgets.any((curr) {
+        if (curr['category_id'] == 'cat_other_exp' && b['category_id'] == 'cat_other_exp') {
+          final currName = (curr['custom_category_name'] ?? curr['category_name'] ?? '').toString().toLowerCase();
+          final bName = (b['custom_category_name'] ?? b['category_name'] ?? '').toString().toLowerCase();
+          return currName == bName;
+        }
+        return curr['category_id'] == b['category_id'];
+      });
       if (!alreadyExists) {
         await FirestoreService.addBudget({
           'user_id': userId,
           'category_id': b['category_id'],
           'category_name': b['category_name'],
+          'custom_category_name': b['custom_category_name'],
           'category_icon': b['category_icon'],
           'limit_amount': b['limit_amount'],
           'month_year': currMonthYear,
@@ -226,6 +234,16 @@ class _BudgetScreenState extends State<BudgetScreen> {
           : '',
     );
 
+    final customCategoryController = TextEditingController(
+      text: isEditing
+          ? (existingBudget['custom_category_name'] ??
+              (existingBudget['category_name'] != 'Lainnya' &&
+                      existingBudget['category_id'] == 'cat_other_exp'
+                  ? existingBudget['category_name']
+                  : ''))
+          : '',
+    );
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A2E),
@@ -241,173 +259,232 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 right: 24,
                 top: 24,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        isEditing ? 'Edit Batas Anggaran' : 'Buat Anggaran Baru',
-                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      if (isEditing)
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                          onPressed: () async {
-                            final deleted = await _confirmDeleteBudget(
-                              existingBudget['id'],
-                              existingBudget['category_name'] ?? 'Kategori',
-                            );
-                            if (deleted && context.mounted) {
-                              Navigator.pop(context);
-                            }
-                          },
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isEditing ? 'Edit Batas Anggaran' : 'Buat Anggaran Baru',
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                         ),
+                        if (isEditing)
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                            onPressed: () async {
+                              final deleted = await _confirmDeleteBudget(
+                                existingBudget['id'],
+                                existingBudget['category_name'] ?? 'Kategori',
+                              );
+                              if (deleted && context.mounted) {
+                                Navigator.pop(context);
+                              }
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (!isEditing) ...[
+                      DropdownButtonFormField<String>(
+                        dropdownColor: const Color(0xFF0F0F1A),
+                        value: selectedCategoryId,
+                        items: _categories.map((c) {
+                          return DropdownMenuItem<String>(
+                            value: c['id'],
+                            child: Text('${c['icon']} ${c['name']}', style: const TextStyle(color: Colors.white)),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) setStateModal(() => selectedCategoryId = val);
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'Pilih Kategori',
+                          labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                          filled: true,
+                          fillColor: const Color(0xFF0F0F1A),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      if (selectedCategoryId == 'cat_other_exp') ...[
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: customCategoryController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            labelText: 'Deskripsi Kategori Lainnya',
+                            hintText: 'mis. Hobi, Liburan, Skincare, Renovasi',
+                            labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                            prefixIcon: const Icon(Icons.edit_note, color: Color(0xFF6C63FF)),
+                            filled: true,
+                            fillColor: const Color(0xFF0F0F1A),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F0F1A),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(existingBudget['category_icon'] ?? '📦', style: const TextStyle(fontSize: 20)),
+                            const SizedBox(width: 12),
+                            Text(
+                              existingBudget['category_name'] ?? 'Kategori',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (existingBudget['category_id'] == 'cat_other_exp') ...[
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: customCategoryController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            labelText: 'Deskripsi Kategori Lainnya',
+                            hintText: 'mis. Hobi, Liburan, Skincare, Renovasi',
+                            labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                            prefixIcon: const Icon(Icons.edit_note, color: Color(0xFF6C63FF)),
+                            filled: true,
+                            fillColor: const Color(0xFF0F0F1A),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (!isEditing) ...[
-                    DropdownButtonFormField<String>(
-                      dropdownColor: const Color(0xFF0F0F1A),
-                      value: selectedCategoryId,
-                      items: _categories.map((c) {
-                        return DropdownMenuItem<String>(
-                          value: c['id'],
-                          child: Text('${c['icon']} ${c['name']}', style: const TextStyle(color: Colors.white)),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) setStateModal(() => selectedCategoryId = val);
-                      },
+                    TextField(
+                      controller: limitController,
+                      autofocus: true,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        ThousandsSeparatorInputFormatter(),
+                      ],
+                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                       decoration: InputDecoration(
-                        labelText: 'Pilih Kategori',
+                        labelText: 'Batas Maksimal Anggaran (Rp)',
+                        prefixText: 'Rp ',
+                        prefixStyle: const TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold),
                         labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                         filled: true,
                         fillColor: const Color(0xFF0F0F1A),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                  ] else ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F0F1A),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                    const SizedBox(height: 12),
+                    // Presets
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
                       child: Row(
-                        children: [
-                          Text(existingBudget['category_icon'] ?? '📦', style: const TextStyle(fontSize: 20)),
-                          const SizedBox(width: 12),
-                          Text(
-                            existingBudget['category_name'] ?? 'Kategori',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  TextField(
-                    controller: limitController,
-                    autofocus: true,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      ThousandsSeparatorInputFormatter(),
-                    ],
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                    decoration: InputDecoration(
-                      labelText: 'Batas Maksimal Anggaran (Rp)',
-                      prefixText: 'Rp ',
-                      prefixStyle: const TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold),
-                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                      filled: true,
-                      fillColor: const Color(0xFF0F0F1A),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Presets
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [500000, 1000000, 2000000, 3000000, 5000000].map((val) {
-                        final valStr = val.toString().replaceAllMapped(
-                              RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-                              (m) => '${m[1]}.',
-                            );
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ActionChip(
-                            backgroundColor: const Color(0xFF0F0F1A),
-                            label: Text('Rp $valStr', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                            onPressed: () {
-                              setStateModal(() {
-                                limitController.text = valStr;
-                              });
-                            },
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        if (limitController.text.isNotEmpty) {
-                          final userId = FirestoreService.currentUserId;
-                          if (userId == null) return;
-                          final monthYear = DateFormat('yyyy-MM').format(_currentMonth);
-                          final cat = _categories.firstWhere(
-                            (c) => c['id'] == selectedCategoryId,
-                            orElse: () => _categories.first,
+                        children: [500000, 1000000, 2000000, 3000000, 5000000].map((val) {
+                          final valStr = val.toString().replaceAllMapped(
+                                RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                                (m) => '${m[1]}.',
+                              );
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ActionChip(
+                              backgroundColor: const Color(0xFF0F0F1A),
+                              label: Text('Rp $valStr', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                              onPressed: () {
+                                setStateModal(() {
+                                  limitController.text = valStr;
+                                });
+                              },
+                            ),
                           );
-                          final amount = double.tryParse(limitController.text.replaceAll('.', '')) ?? 0;
-
-                          if (isEditing) {
-                            await FirestoreService.updateBudget(existingBudget['id'], {
-                              'limit_amount': amount,
-                            });
-                          } else {
-                            // Check if category already has budget for this month
-                            final existing = _budgets.where((b) => b['category_id'] == selectedCategoryId).toList();
-                            if (existing.isNotEmpty) {
-                              await FirestoreService.updateBudget(existing.first['id'], {
-                                'limit_amount': amount,
-                              });
-                            } else {
-                              await FirestoreService.addBudget({
-                                'user_id': userId,
-                                'category_id': selectedCategoryId,
-                                'category_name': cat['name'],
-                                'category_icon': cat['icon'],
-                                'limit_amount': amount,
-                                'month_year': monthYear,
-                              });
-                            }
-                          }
-
-                          if (context.mounted) Navigator.pop(context);
-                          _loadBudgets();
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6C63FF),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: Text(
-                        isEditing ? 'Simpan Perubahan' : 'Buat Anggaran',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                        }).toList(),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          if (limitController.text.isNotEmpty) {
+                            final userId = FirestoreService.currentUserId;
+                            if (userId == null) return;
+                            final monthYear = DateFormat('yyyy-MM').format(_currentMonth);
+                            final cat = _categories.firstWhere(
+                              (c) => c['id'] == selectedCategoryId,
+                              orElse: () => _categories.first,
+                            );
+                            final amount = double.tryParse(limitController.text.replaceAll('.', '')) ?? 0;
+                            final isOther = selectedCategoryId == 'cat_other_exp';
+                            final customDesc = customCategoryController.text.trim();
+                            final finalCatName = (isOther && customDesc.isNotEmpty)
+                                ? customDesc
+                                : cat['name']!;
+
+                            if (isEditing) {
+                              final Map<String, dynamic> updateData = {
+                                'limit_amount': amount,
+                              };
+                              if (existingBudget['category_id'] == 'cat_other_exp') {
+                                updateData['category_name'] = finalCatName;
+                                updateData['custom_category_name'] = customDesc;
+                              }
+                              await FirestoreService.updateBudget(existingBudget['id'], updateData);
+                            } else {
+                              // Check if category already has budget for this month
+                              final existing = _budgets.where((b) {
+                                if (selectedCategoryId == 'cat_other_exp') {
+                                  final existingName = (b['category_name'] ?? '').toString().toLowerCase();
+                                  final existingCustom = (b['custom_category_name'] ?? '').toString().toLowerCase();
+                                  final target = finalCatName.toLowerCase();
+                                  return b['category_id'] == 'cat_other_exp' &&
+                                      (existingName == target || existingCustom == target);
+                                }
+                                return b['category_id'] == selectedCategoryId;
+                              }).toList();
+
+                              if (existing.isNotEmpty) {
+                                await FirestoreService.updateBudget(existing.first['id'], {
+                                  'limit_amount': amount,
+                                  'category_name': finalCatName,
+                                  'custom_category_name': customDesc,
+                                });
+                              } else {
+                                await FirestoreService.addBudget({
+                                  'user_id': userId,
+                                  'category_id': selectedCategoryId,
+                                  'category_name': finalCatName,
+                                  'custom_category_name': customDesc,
+                                  'category_icon': cat['icon'],
+                                  'limit_amount': amount,
+                                  'month_year': monthYear,
+                                });
+                              }
+                            }
+
+                            if (context.mounted) Navigator.pop(context);
+                            _loadBudgets();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6C63FF),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: Text(
+                          isEditing ? 'Simpan Perubahan' : 'Buat Anggaran',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -424,6 +501,30 @@ class _BudgetScreenState extends State<BudgetScreen> {
           (m) => '${m[1]}.',
         );
     return isNegative ? '-Rp $formatted' : 'Rp $formatted';
+  }
+
+  bool _transactionMatchesBudget(Map<String, dynamic> t, Map<String, dynamic> b) {
+    final bCatId = b['category_id']?.toString() ?? '';
+    final bCatName = (b['category_name']?.toString() ?? '').toLowerCase();
+    final bCustom = (b['custom_category_name']?.toString() ?? '').toLowerCase();
+
+    final tCatId = t['category_id']?.toString() ?? '';
+    final tCat = (t['category']?.toString() ?? '').toLowerCase();
+    final tNote = (t['note']?.toString() ?? '').toLowerCase();
+    final tDesc = (t['description']?.toString() ?? '').toLowerCase();
+
+    // If it's a custom 'Lainnya' budget with a specific name/description (e.g. "Hobi" or "Renovasi")
+    if (bCatId == 'cat_other_exp' && (bCustom.isNotEmpty || (bCatName.isNotEmpty && bCatName != 'lainnya'))) {
+      final target = bCustom.isNotEmpty ? bCustom : bCatName;
+      return tCat == target || tNote == target || tDesc == target ||
+             tNote.contains(target) || tDesc.contains(target);
+    }
+
+    if (bCatId.isNotEmpty && tCatId.isNotEmpty && bCatId == tCatId) {
+      return true;
+    }
+
+    return tCat == bCatName;
   }
 
   Widget _buildOverviewHero({
@@ -639,7 +740,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     double totalUsed = 0.0;
     for (var b in _budgets) {
       for (var t in _expenseTransactions) {
-        if (t['category_id'] == b['category_id'] || t['category'] == b['category_name']) {
+        if (_transactionMatchesBudget(t, b)) {
           totalUsed += (t['amount'] as num?)?.toDouble() ?? 0.0;
         }
       }
@@ -818,7 +919,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
 
                           double usedAmount = 0;
                           for (var t in _expenseTransactions) {
-                            if (t['category_id'] == budget['category_id'] || t['category'] == catName) {
+                            if (_transactionMatchesBudget(t, budget)) {
                               usedAmount += (t['amount'] as num?)?.toDouble() ?? 0.0;
                             }
                           }
@@ -881,13 +982,33 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              Text(
-                                                catName,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16,
-                                                ),
+                                              Row(
+                                                children: [
+                                                  Flexible(
+                                                    child: Text(
+                                                      catName,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 16,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                  if (budget['category_id'] == 'cat_other_exp') ...[
+                                                    const SizedBox(width: 8),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFF6C63FF).withOpacity(0.18),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                        border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.35)),
+                                                      ),
+                                                      child: const Text('Lainnya', style: TextStyle(color: Color(0xFF9C95FF), fontSize: 10, fontWeight: FontWeight.bold)),
+                                                    ),
+                                                  ],
+                                                ],
                                               ),
                                               const SizedBox(height: 2),
                                               Text(
