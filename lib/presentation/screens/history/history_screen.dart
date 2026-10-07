@@ -21,6 +21,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   DateTime _selectedDate =
       DateTime(DateTime.now().year, DateTime.now().month, 1);
   DocumentSnapshot<Map<String, dynamic>>? _lastDocument;
+  bool _isSelectionMode = false;
+  final Set<String> _selectedTransactionIds = {};
 
   @override
   void initState() {
@@ -39,6 +41,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _transactions = [];
         _lastDocument = null;
         _hasMore = false;
+        _selectedTransactionIds.clear();
       });
     }
 
@@ -396,6 +399,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           DateTime(_selectedDate.year, _selectedDate.month + increment, 1);
       _lastDocument = null;
       _hasMore = false;
+      _selectedTransactionIds.clear();
     });
     _loadTransactions();
   }
@@ -426,30 +430,89 @@ class _HistoryScreenState extends State<HistoryScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F0F1A),
         elevation: 0,
-        title: const Text('Riwayat Transaksi',
-            style: TextStyle(color: Colors.white)),
+        title: _isSelectionMode
+            ? Text('${_selectedTransactionIds.length} Dipilih',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold))
+            : const Text('Riwayat Transaksi',
+                style: TextStyle(color: Colors.white)),
+        leading: _isSelectionMode
+            ? IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () {
+                  setState(() {
+                    _isSelectionMode = false;
+                    _selectedTransactionIds.clear();
+                  });
+                },
+              )
+            : null,
         actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.download, color: Colors.white),
-            color: const Color(0xFF1A1A2E),
-            onSelected: (val) {
-              if (val == 'csv') {
-                ExportHelper.exportToCSV(_transactions);
-              } else if (val == 'pdf') {
-                ExportHelper.exportToPDF(_transactions);
-              }
-            },
-            itemBuilder: (ctx) => [
-              const PopupMenuItem(
-                  value: 'csv',
-                  child: Text('Ekspor ke CSV',
-                      style: TextStyle(color: Colors.white))),
-              const PopupMenuItem(
-                  value: 'pdf',
-                  child: Text('Ekspor ke PDF',
-                      style: TextStyle(color: Colors.white))),
-            ],
-          ),
+          if (_isSelectionMode) ...[
+            TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  final allIds = _filteredTransactions
+                      .map((t) => t['id']?.toString() ?? '')
+                      .where((id) => id.isNotEmpty)
+                      .toSet();
+                  if (_selectedTransactionIds.length == allIds.length &&
+                      allIds.isNotEmpty) {
+                    _selectedTransactionIds.clear();
+                  } else {
+                    _selectedTransactionIds.addAll(allIds);
+                  }
+                });
+              },
+              icon: Icon(
+                _selectedTransactionIds.length == _filteredTransactions.length &&
+                        _filteredTransactions.isNotEmpty
+                    ? Icons.deselect
+                    : Icons.select_all,
+                color: const Color(0xFF6C63FF),
+                size: 18,
+              ),
+              label: Text(
+                _selectedTransactionIds.length == _filteredTransactions.length &&
+                        _filteredTransactions.isNotEmpty
+                    ? 'Batal Semua'
+                    : 'Pilih Semua',
+                style: const TextStyle(
+                    color: Color(0xFF6C63FF), fontWeight: FontWeight.bold),
+              ),
+            ),
+          ] else ...[
+            IconButton(
+              icon: const Icon(Icons.calculate_outlined, color: Colors.white),
+              tooltip: 'Kalkulator Seleksi Total',
+              onPressed: () {
+                setState(() {
+                  _isSelectionMode = true;
+                });
+              },
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.download, color: Colors.white),
+              color: const Color(0xFF1A1A2E),
+              onSelected: (val) {
+                if (val == 'csv') {
+                  ExportHelper.exportToCSV(_transactions);
+                } else if (val == 'pdf') {
+                  ExportHelper.exportToPDF(_transactions);
+                }
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                    value: 'csv',
+                    child: Text('Ekspor ke CSV',
+                        style: TextStyle(color: Colors.white))),
+                const PopupMenuItem(
+                    value: 'pdf',
+                    child: Text('Ekspor ke PDF',
+                        style: TextStyle(color: Colors.white))),
+              ],
+            ),
+          ],
         ],
       ),
       body: Column(
@@ -515,8 +578,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     : RefreshIndicator(
                         onRefresh: _loadTransactions,
                         child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 12),
+                          padding: EdgeInsets.fromLTRB(
+                            24,
+                            12,
+                            24,
+                            _isSelectionMode ? 120 : 12,
+                          ),
                           itemCount:
                               _filteredTransactions.length + (_hasMore ? 1 : 0),
                           itemBuilder: (context, index) {
@@ -553,6 +620,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             }
 
                             final t = _filteredTransactions[index];
+                            final String tId =
+                                t['id']?.toString() ?? '$index';
+                            final bool isSelected =
+                                _selectedTransactionIds.contains(tId);
                             final isIncome = t['type'] == 'income';
                             final double amount =
                                 (t['amount'] as num?)?.toDouble() ?? 0.0;
@@ -573,8 +644,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 : '';
 
                             return Dismissible(
-                              key: Key(t['id'] ?? '$index'),
-                              direction: DismissDirection.endToStart,
+                              key: Key(tId),
+                              direction: _isSelectionMode
+                                  ? DismissDirection.none
+                                  : DismissDirection.endToStart,
                               background: Container(
                                 alignment: Alignment.centerRight,
                                 padding: const EdgeInsets.only(right: 20),
@@ -589,22 +662,75 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   _confirmDeleteTransaction(t['id']),
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(16),
-                                onTap: () => _showEditTransactionModal(t),
+                                onTap: () {
+                                  if (_isSelectionMode) {
+                                    setState(() {
+                                      if (_selectedTransactionIds
+                                          .contains(tId)) {
+                                        _selectedTransactionIds.remove(tId);
+                                      } else {
+                                        _selectedTransactionIds.add(tId);
+                                      }
+                                    });
+                                  } else {
+                                    _showEditTransactionModal(t);
+                                  }
+                                },
+                                onLongPress: () {
+                                  if (!_isSelectionMode) {
+                                    setState(() {
+                                      _isSelectionMode = true;
+                                      _selectedTransactionIds.add(tId);
+                                    });
+                                  }
+                                },
                                 child: Container(
                                   margin: const EdgeInsets.only(bottom: 12),
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF1A1A2E),
+                                    color: isSelected
+                                        ? const Color(0xFF252445)
+                                        : const Color(0xFF1A1A2E),
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: isAutoSynced
+                                      color: isSelected
                                           ? const Color(0xFF6C63FF)
-                                              .withOpacity(0.3)
-                                          : Colors.white.withOpacity(0.05),
+                                          : (isAutoSynced
+                                              ? const Color(0xFF6C63FF)
+                                                  .withOpacity(0.3)
+                                              : Colors.white
+                                                  .withOpacity(0.05)),
+                                      width: isSelected ? 1.5 : 1.0,
                                     ),
                                   ),
                                   child: Row(
                                     children: [
+                                      if (_isSelectionMode) ...[
+                                        Container(
+                                          margin: const EdgeInsets.only(
+                                              right: 12),
+                                          width: 22,
+                                          height: 22,
+                                          decoration: BoxDecoration(
+                                            color: isSelected
+                                                ? const Color(0xFF6C63FF)
+                                                : Colors.transparent,
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: isSelected
+                                                  ? const Color(0xFF6C63FF)
+                                                  : Colors.white38,
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                          child: isSelected
+                                              ? const Icon(Icons.check,
+                                                  size: 16,
+                                                  color: Colors.white)
+                                              : null,
+                                        ),
+                                      ],
                                       Container(
                                         padding: const EdgeInsets.all(10),
                                         decoration: BoxDecoration(
@@ -736,6 +862,258 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
           ),
         ],
+      ),
+      bottomNavigationBar: _isSelectionMode ? _buildCalculatorBar() : null,
+    );
+  }
+
+  Widget _buildCalculatorBar() {
+    double totalExpense = 0;
+    double totalIncome = 0;
+    int expenseCount = 0;
+    int incomeCount = 0;
+
+    for (final t in _transactions) {
+      final id = t['id']?.toString() ?? '';
+      if (_selectedTransactionIds.contains(id)) {
+        final amt = (t['amount'] as num?)?.toDouble() ?? 0.0;
+        if (t['type'] == 'income') {
+          totalIncome += amt;
+          incomeCount++;
+        } else {
+          totalExpense += amt;
+          expenseCount++;
+        }
+      }
+    }
+
+    final int totalSelected = _selectedTransactionIds.length;
+    final double netTotal = totalIncome - totalExpense;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF16162A),
+        border: Border(
+          top: BorderSide(
+            color: const Color(0xFF6C63FF).withValues(alpha: 0.35),
+            width: 1.5,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (totalSelected == 0) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.touch_app_outlined,
+                        size: 18, color: Colors.white.withValues(alpha: 0.5)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Centang transaksi di atas untuk menghitung total',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '$totalSelected Transaksi Dipilih',
+                      style: const TextStyle(
+                        color: Color(0xFF9D97FF),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() => _selectedTransactionIds.clear());
+                      },
+                      child: Text(
+                        'Reset Pilihan',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          fontSize: 12,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    // Total Pengeluaran
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.red.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.arrow_upward,
+                                    size: 13, color: Colors.redAccent),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Keluar ($expenseCount)',
+                                  style: const TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                _formatCurrency(totalExpense),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Total Pemasukan
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.green.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.arrow_downward,
+                                    size: 13, color: Colors.greenAccent),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Masuk ($incomeCount)',
+                                  style: const TextStyle(
+                                    color: Colors.greenAccent,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                _formatCurrency(totalIncome),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (expenseCount > 0 && incomeCount > 0) ...[
+                      const SizedBox(width: 8),
+                      // Selisih Net
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 8, horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6C63FF)
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: const Color(0xFF6C63FF)
+                                  .withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.balance,
+                                      size: 13, color: Color(0xFF9D97FF)),
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    'Selisih',
+                                    style: TextStyle(
+                                      color: Color(0xFF9D97FF),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '${netTotal >= 0 ? '+' : '-'}${_formatCurrency(netTotal.abs())}',
+                                  style: TextStyle(
+                                    color: netTotal >= 0
+                                        ? Colors.greenAccent
+                                        : Colors.redAccent,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
