@@ -337,10 +337,54 @@ export default {
         const messageIds = await gmail.listBankMessages(accessToken, searchQuery);
         const parserRegistry = new ParserRegistry();
 
+        // EARLY DEDUPLICATION: Kumpulkan semua message_id yang sudah pernah diproses
+        const existingTx = await firestore.queryCollection('transactions', 'user_id', 'EQUAL', userId);
+        const processedMsgIds = new Set<string>();
+
+        // 1. Dari transaksi yang sudah tersimpan di Firestore
+        for (const t of existingTx) {
+          if (t.data.message_id) {
+            processedMsgIds.add(t.data.message_id);
+          }
+        }
+
+        // 2. Dari daftar processed_message_ids pada integration (jika ada)
+        if (Array.isArray(integration.processed_message_ids)) {
+          for (const id of integration.processed_message_ids) {
+            processedMsgIds.add(id);
+          }
+        }
+
+        // Saring hanya messageId yang benar-benar BARU
+        const newMessageIds = messageIds.filter((id) => !processedMsgIds.has(id));
+
+        // JIKA TIDAK ADA EMAIL BARU: SELESAI SEKETIKA (0 KUOTA AI, 0 DETIK)
+        if (newMessageIds.length === 0) {
+          const nowIso = new Date().toISOString();
+          await firestore.setDocument('gmail_integrations', userId, {
+            ...integration,
+            last_synced_at: nowIso,
+            last_status: 'success',
+            last_synced_count: 0,
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              totalScanned: messageIds.length,
+              newTransactionsCount: 0,
+              transactions: [],
+              lastSyncedAt: nowIso,
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // JIKA ADA EMAIL BARU: HANYA PROSES EMAIL YANG BARU TERSEBUT
         let newCount = 0;
         const insertedTransactions: any[] = [];
 
-        for (const msgId of messageIds) {
+        for (const msgId of newMessageIds) {
           const msg = await gmail.getMessage(accessToken, msgId);
           if (!msg) continue;
 
@@ -363,6 +407,8 @@ export default {
               insertedTransactions.push(parsed);
             }
           }
+
+          processedMsgIds.add(msgId);
         }
 
         const nowIso = new Date().toISOString();
@@ -371,6 +417,7 @@ export default {
           last_synced_at: nowIso,
           last_status: 'success',
           last_synced_count: newCount,
+          processed_message_ids: Array.from(processedMsgIds).slice(-300),
         });
 
         // Catat log sinkronisasi
@@ -380,7 +427,7 @@ export default {
           user_id: userId,
           synced_at: nowIso,
           status: 'success',
-          processed_emails: messageIds.length,
+          processed_emails: newMessageIds.length,
           new_transactions: newCount,
         });
 
