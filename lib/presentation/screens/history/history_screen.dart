@@ -760,13 +760,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                           children: [
                                             Text(
                                               desc,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(
                                                   color: Colors.white,
                                                   fontWeight: FontWeight.w600,
                                                   fontSize: 15),
                                             ),
                                             const SizedBox(height: 3),
-                                            Row(
+                                            Wrap(
+                                              spacing: 6,
+                                              runSpacing: 2,
+                                              crossAxisAlignment:
+                                                  WrapCrossAlignment.center,
                                               children: [
                                                 Text(
                                                   categoryName,
@@ -776,7 +782,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                                       fontSize: 12),
                                                 ),
                                                 if (isAutoSynced) ...[
-                                                  const SizedBox(width: 6),
                                                   Container(
                                                     padding: const EdgeInsets
                                                         .symmetric(
@@ -802,7 +807,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                                   ),
                                                 ],
                                                 if (isRecon) ...[
-                                                  const SizedBox(width: 6),
                                                   Container(
                                                     padding: const EdgeInsets
                                                         .symmetric(
@@ -843,14 +847,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                           ],
                                         ),
                                       ),
-                                      Text(
-                                        '${isIncome ? '+' : '-'}${_formatCurrency(amount)}',
-                                        style: TextStyle(
-                                          color: isIncome
-                                              ? Colors.greenAccent
-                                              : Colors.redAccent,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
+                                      const SizedBox(width: 8),
+                                      FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          '${isIncome ? '+' : '-'}${_formatCurrency(amount)}',
+                                          style: TextStyle(
+                                            color: isIncome
+                                                ? Colors.greenAccent
+                                                : Colors.redAccent,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
                                         ),
                                       ),
                                     ],

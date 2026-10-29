@@ -102,19 +102,56 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return data;
   }
 
-  Map<String, double> get _expenseByMonth {
-    final Map<String, double> data = {};
-    for (var t in _transactions) {
-      if (t['type'] == 'expense') {
-        final raw = (t['transaction_date'] ?? t['date'] ?? '').toString();
-        if (raw.length >= 7) {
-          final monthKey = raw.substring(0, 7);
+  List<Map<String, dynamic>> get _dailyCashflowForSelectedMonth {
+    final daysInMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
+    final List<Map<String, dynamic>> dailyList = List.generate(daysInMonth, (index) {
+      final day = index + 1;
+      return {
+        'day': day,
+        'income': 0.0,
+        'expense': 0.0,
+      };
+    });
+
+    for (var t in _currentMonthTransactions) {
+      final raw = t['transaction_date'] ?? t['date'];
+      if (raw == null) continue;
+      final date = DateTime.tryParse(raw.toString());
+      if (date != null && date.year == _selectedMonth.year && date.month == _selectedMonth.month) {
+        final day = date.day;
+        if (day >= 1 && day <= daysInMonth) {
           final amt = (t['amount'] as num?)?.toDouble() ?? 0.0;
-          data[monthKey] = (data[monthKey] ?? 0) + amt;
+          if (t['type'] == 'income') {
+            dailyList[day - 1]['income'] = (dailyList[day - 1]['income'] as double) + amt;
+          } else if (t['type'] == 'expense') {
+            dailyList[day - 1]['expense'] = (dailyList[day - 1]['expense'] as double) + amt;
+          }
         }
       }
     }
-    return Map.fromEntries(data.entries.toList()..sort((a, b) => a.key.compareTo(b.key)));
+
+    return dailyList;
+  }
+
+  Widget _buildLegendItem(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
+        ),
+      ],
+    );
   }
 
   String _formatCurrency(double amount) {
@@ -505,86 +542,177 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             (i) => setState(() => _touchedIncomeIndex = i)),
                         const SizedBox(height: 32),
 
-                        // 6. Bar Chart Pengeluaran per Bulan (Aman dari crash)
-                        const Text('Tren Pengeluaran per Bulan',
-                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        // 6. Bar Chart Tren Arus Kas Harian (Pemasukan & Pengeluaran)
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            const Text(
+                              'Tren Harian per Tanggal',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildLegendItem(const Color(0xFF00E676), 'Masuk'),
+                                const SizedBox(width: 10),
+                                _buildLegendItem(const Color(0xFFFF5252), 'Keluar'),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(Icons.swipe, size: 14, color: Colors.white.withValues(alpha: 0.4)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Geser grafik ke samping untuk melihat seluruh tanggal (1 - ${DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day})',
+                                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 16),
-                        _expenseByMonth.isEmpty
-                            ? Center(child: Text('Belum ada data bulanan', style: TextStyle(color: Colors.white.withValues(alpha: 0.4))))
-                            : SizedBox(
-                                height: 220,
-                                child: BarChart(
-                                  BarChartData(
-                                    alignment: BarChartAlignment.spaceAround,
-                                    maxY: () {
-                                      final maxVal = _expenseByMonth.values.reduce((a, b) => a > b ? a : b);
-                                      return maxVal > 0 ? maxVal * 1.25 : 100000.0;
-                                    }(),
-                                    barTouchData: BarTouchData(
-                                      enabled: true,
-                                      touchTooltipData: BarTouchTooltipData(
-                                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                                          final keys = _expenseByMonth.keys.toList();
-                                          final month = groupIndex < keys.length ? keys[groupIndex] : '';
-                                          return BarTooltipItem(
-                                            '$month\n${_formatCurrency(rod.toY)}',
-                                            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                        () {
+                          final dailyData = _dailyCashflowForSelectedMonth;
+                          final daysInMonth = dailyData.length;
+                          final maxDailyTotal = dailyData
+                              .map((e) => (e['income'] as double) + (e['expense'] as double))
+                              .fold(0.0, (m, v) => v > m ? v : m);
+
+                          if (maxDailyTotal == 0) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 30),
+                                child: Text('Belum ada transaksi di bulan ini',
+                                    style: TextStyle(color: Colors.white.withValues(alpha: 0.4))),
+                              ),
+                            );
+                          }
+
+                          final maxY = maxDailyTotal * 1.25;
+                          final chartWidth = (daysInMonth * 22.0).clamp(MediaQuery.of(context).size.width - 48, 1200.0);
+
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: SizedBox(
+                              width: chartWidth,
+                              height: 230,
+                              child: BarChart(
+                                BarChartData(
+                                  alignment: BarChartAlignment.spaceAround,
+                                  maxY: maxY,
+                                  barTouchData: BarTouchData(
+                                    enabled: true,
+                                    touchTooltipData: BarTouchTooltipData(
+                                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                                        final day = group.x;
+                                        final item = dailyData.firstWhere(
+                                          (e) => e['day'] == day,
+                                          orElse: () => {'income': 0.0, 'expense': 0.0},
+                                        );
+                                        final inc = item['income'] as double;
+                                        final exp = item['expense'] as double;
+
+                                        return BarTooltipItem(
+                                          'Tgl $day $monthLabel\n',
+                                          const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                          children: [
+                                            if (inc > 0)
+                                              TextSpan(
+                                                text: 'Masuk: ${_formatCurrency(inc)}\n',
+                                                style: const TextStyle(color: Color(0xFF00E676), fontSize: 11, fontWeight: FontWeight.w600),
+                                              ),
+                                            if (exp > 0)
+                                              TextSpan(
+                                                text: 'Keluar: ${_formatCurrency(exp)}',
+                                                style: const TextStyle(color: Color(0xFFFF5252), fontSize: 11, fontWeight: FontWeight.w600),
+                                              ),
+                                            if (inc == 0 && exp == 0)
+                                              const TextSpan(
+                                                text: 'Tidak ada transaksi',
+                                                style: TextStyle(color: Colors.white54, fontSize: 11),
+                                              ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  titlesData: FlTitlesData(
+                                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                    bottomTitles: AxisTitles(
+                                      sideTitles: SideTitles(
+                                        showTitles: true,
+                                        reservedSize: 24,
+                                        getTitlesWidget: (value, meta) {
+                                          final day = value.toInt();
+                                          if (day < 1 || day > daysInMonth) return const SizedBox.shrink();
+                                          return Padding(
+                                            padding: const EdgeInsets.only(top: 6),
+                                            child: Text(
+                                              '$day',
+                                              style: TextStyle(
+                                                color: Colors.white.withValues(alpha: 0.6),
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
                                           );
                                         },
                                       ),
                                     ),
-                                    titlesData: FlTitlesData(
-                                      leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                      bottomTitles: AxisTitles(
-                                        sideTitles: SideTitles(
-                                          showTitles: true,
-                                          getTitlesWidget: (value, meta) {
-                                            final keys = _expenseByMonth.keys.toList();
-                                            final idx = value.toInt();
-                                            if (idx < 0 || idx >= keys.length) return const SizedBox.shrink();
-                                            final key = keys[idx];
-                                            String label = key;
-                                            if (key.length >= 7 && key.contains('-')) {
-                                              final mInt = int.tryParse(key.substring(5, 7)) ?? 0;
-                                              const shortMonths = [
-                                                '', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-                                                'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
-                                              ];
-                                              if (mInt >= 1 && mInt <= 12) {
-                                                label = shortMonths[mInt];
-                                              }
-                                            }
-                                            return Padding(
-                                              padding: const EdgeInsets.only(top: 6),
-                                              child: Text(
-                                                label,
-                                                style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                    gridData: const FlGridData(show: false),
-                                    borderData: FlBorderData(show: false),
-                                    barGroups: _expenseByMonth.entries.toList().asMap().entries.map((entry) {
-                                      return BarChartGroupData(
-                                        x: entry.key,
-                                        barRods: [
-                                          BarChartRodData(
-                                            toY: entry.value.value,
-                                            color: const Color(0xFF6C63FF),
-                                            width: 18,
-                                            borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-                                          ),
-                                        ],
-                                      );
-                                    }).toList(),
                                   ),
+                                  gridData: const FlGridData(show: false),
+                                  borderData: FlBorderData(show: false),
+                                  barGroups: dailyData.map((item) {
+                                    final day = item['day'] as int;
+                                    final inc = item['income'] as double;
+                                    final exp = item['expense'] as double;
+                                    final total = inc + exp;
+
+                                    List<BarChartRodStackItem> stackItems = [];
+                                    Color? singleColor;
+
+                                    if (inc > 0 && exp > 0) {
+                                      // Stacked: bawah pengeluaran (merah), atas pemasukan (hijau)
+                                      stackItems = [
+                                        BarChartRodStackItem(0, exp, const Color(0xFFFF5252)),
+                                        BarChartRodStackItem(exp, total, const Color(0xFF00E676)),
+                                      ];
+                                    } else if (exp > 0) {
+                                      singleColor = const Color(0xFFFF5252);
+                                    } else if (inc > 0) {
+                                      singleColor = const Color(0xFF00E676);
+                                    }
+
+                                    return BarChartGroupData(
+                                      x: day,
+                                      barRods: [
+                                        BarChartRodData(
+                                          toY: total,
+                                          color: stackItems.isEmpty ? (singleColor ?? Colors.transparent) : null,
+                                          rodStackItems: stackItems,
+                                          width: 12,
+                                          borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                                        ),
+                                      ],
+                                    );
+                                  }).toList(),
                                 ),
                               ),
+                            ),
+                          );
+                        }(),
                         const SizedBox(height: 24),
                       ],
                     ),

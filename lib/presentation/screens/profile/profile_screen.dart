@@ -144,64 +144,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: const Color(0xFF1A1A2E),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Text(
-                  'Pilih Waktu Pengingat Jatuh Tempo',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: 12),
-              ...options.map((opt) {
-                final int h = opt['hours'] as int;
-                final String lbl = opt['label'] as String;
-                final bool isSelected = _dueDateOffsetHours == h;
-
-                return ListTile(
-                  title: Text(
-                    lbl,
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Text(
+                    'Pilih Waktu Pengingat Jatuh Tempo',
                     style: TextStyle(
-                      color:
-                          isSelected ? const Color(0xFF6C63FF) : Colors.white,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold),
                   ),
-                  trailing: isSelected
-                      ? const Icon(Icons.check_circle, color: Color(0xFF6C63FF))
-                      : null,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    await NotificationService.setDueDateOffsetHours(h);
-                    await FcmService.syncTokenAndPreferences(dueDateOffsetHours: h);
-                    if (mounted) {
-                      setState(() => _dueDateOffsetHours = h);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Waktu pengingat diatur: $lbl'),
-                          backgroundColor: const Color(0xFF6C63FF),
-                        ),
-                      );
-                    }
-                  },
-                );
-              }),
-            ],
+                ),
+                const SizedBox(height: 12),
+                ...options.map((opt) {
+                  final int h = opt['hours'] as int;
+                  final String lbl = opt['label'] as String;
+                  final bool isSelected = _dueDateOffsetHours == h;
+
+                  return ListTile(
+                    title: Text(
+                      lbl,
+                      style: TextStyle(
+                        color:
+                            isSelected ? const Color(0xFF6C63FF) : Colors.white,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? const Icon(Icons.check_circle, color: Color(0xFF6C63FF))
+                        : null,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await NotificationService.setDueDateOffsetHours(h);
+                      await FcmService.syncTokenAndPreferences(dueDateOffsetHours: h);
+                      if (mounted) {
+                        setState(() => _dueDateOffsetHours = h);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Waktu pengingat diatur: $lbl'),
+                            backgroundColor: const Color(0xFF6C63FF),
+                          ),
+                        );
+                      }
+                    },
+                  );
+                }),
+              ],
+            ),
           ),
         );
       },
@@ -221,64 +224,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: const Color(0xFF1A1A2E),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Text(
-                  'Pilih Waktu Pengingat Transaksi Rutin',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: 12),
-              ...options.map((opt) {
-                final int h = opt['hours'] as int;
-                final String lbl = opt['label'] as String;
-                final bool isSelected = _recurringOffsetHours == h;
-
-                return ListTile(
-                  title: Text(
-                    lbl,
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Text(
+                    'Pilih Waktu Pengingat Transaksi Rutin',
                     style: TextStyle(
-                      color:
-                          isSelected ? const Color(0xFF6C63FF) : Colors.white,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold),
                   ),
-                  trailing: isSelected
-                      ? const Icon(Icons.check_circle, color: Color(0xFF6C63FF))
-                      : null,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    await NotificationService.setRecurringOffsetHours(h);
-                    await FcmService.syncTokenAndPreferences(recurringOffsetHours: h);
-                    if (mounted) {
-                      setState(() => _recurringOffsetHours = h);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Waktu pengingat rutin diatur: $lbl'),
-                          backgroundColor: const Color(0xFF6C63FF),
-                        ),
-                      );
-                    }
-                  },
-                );
-              }),
-            ],
+                ),
+                const SizedBox(height: 12),
+                ...options.map((opt) {
+                  final int h = opt['hours'] as int;
+                  final String lbl = opt['label'] as String;
+                  final bool isSelected = _recurringOffsetHours == h;
+
+                  return ListTile(
+                    title: Text(
+                      lbl,
+                      style: TextStyle(
+                        color:
+                            isSelected ? const Color(0xFF6C63FF) : Colors.white,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? const Icon(Icons.check_circle, color: Color(0xFF6C63FF))
+                        : null,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await NotificationService.setRecurringOffsetHours(h);
+                      await FcmService.syncTokenAndPreferences(recurringOffsetHours: h);
+                      if (mounted) {
+                        setState(() => _recurringOffsetHours = h);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Waktu pengingat rutin diatur: $lbl'),
+                            backgroundColor: const Color(0xFF6C63FF),
+                          ),
+                        );
+                      }
+                    },
+                  );
+                }),
+              ],
+            ),
           ),
         );
       },
@@ -1083,7 +1089,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 40),
                   Center(
                     child: Text(
-                      'Expense Tracker • Bank Sync v3.2.0',
+                      'Expense Tracker • Bank Sync v3.3.1',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.2),
                         fontSize: 12,
