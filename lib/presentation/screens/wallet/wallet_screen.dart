@@ -174,6 +174,50 @@ class _WalletScreenState extends State<WalletScreen> {
             ],
           ),
         );
+      } else if (result.isExpired) {
+        setState(() {
+          _syncStatus = GmailSyncStatus(
+            isConnected: false,
+            isExpired: true,
+            email: _syncStatus.email,
+          );
+        });
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1A1A2E),
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.amberAccent),
+                SizedBox(width: 8),
+                Text('Token Gmail Kedaluwarsa',
+                    style: TextStyle(color: Colors.white, fontSize: 16)),
+              ],
+            ),
+            content: const Text(
+              'Masa berlaku token Google telah berakhir (mode testing 7 hari). Silakan hubungkan ulang akun Google Anda untuk melanjutkan sinkronisasi.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Batal',
+                    style: TextStyle(color: Colors.white54)),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _handleConnectGmail();
+                },
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6C63FF)),
+                icon: const Icon(Icons.refresh, color: Colors.white, size: 16),
+                label: const Text('Hubungkan Ulang',
+                    style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -193,6 +237,67 @@ class _WalletScreenState extends State<WalletScreen> {
       _loadData();
     }
   }
+  Future<void> _handleDisconnectGmail() async {
+    final userId = FirestoreService.currentUserId;
+    if (userId == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Text('Putuskan Integrasi Gmail?',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Akun Gmail akan diputus dari aplikasi. Otomatisasi transaksi email bank akan dinonaktifkan.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Putuskan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isSyncing = true);
+    try {
+      final success = await GmailSyncService.disconnectGmail(userId);
+      if (success) {
+        setState(() {
+          _syncStatus = GmailSyncStatus(isConnected: false, isExpired: false);
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Integrasi Gmail berhasil diputuskan.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal memutuskan integrasi Gmail.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
+      _loadData();
+    }
+  }
+
 
   void _showAddWalletModal() {
     final nameController = TextEditingController();
@@ -665,19 +770,49 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   Widget _buildGmailSyncCard() {
+    final bool isExpired = _syncStatus.isExpired;
+    final bool isConnected = _syncStatus.isConnected && !isExpired;
+
+    Color badgeColor = Colors.orangeAccent;
+    Color badgeBg = Colors.orange.withOpacity(0.2);
+    String badgeText = 'Belum Konek';
+
+    if (isConnected) {
+      badgeColor = Colors.greenAccent;
+      badgeBg = Colors.green.withOpacity(0.2);
+      badgeText = 'Aktif';
+    } else if (isExpired) {
+      badgeColor = Colors.amberAccent;
+      badgeBg = Colors.amber.withOpacity(0.2);
+      badgeText = 'Token Kedaluwarsa';
+    }
+
+    String subtitle = 'Hubungkan Gmail (Read-Only) untuk auto sync Mandiri';
+    if (isConnected) {
+      subtitle = 'Terhubung: ${_syncStatus.email ?? "Gmail Aktif"}';
+    } else if (isExpired) {
+      subtitle = 'Token 7 hari berakhir (mode testing). Silakan hubungkan ulang.';
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: _syncStatus.isConnected
+          colors: isConnected
               ? [const Color(0xFF1E3A8A), const Color(0xFF1E1B4B)]
-              : [const Color(0xFF312E81), const Color(0xFF1E1B4B)],
+              : isExpired
+                  ? [const Color(0xFF4C1D24), const Color(0xFF1E1B4B)]
+                  : [const Color(0xFF312E81), const Color(0xFF1E1B4B)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.4)),
+        border: Border.all(
+          color: isExpired
+              ? Colors.amberAccent.withOpacity(0.6)
+              : const Color(0xFF6C63FF).withOpacity(0.4),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -690,8 +825,11 @@ class _WalletScreenState extends State<WalletScreen> {
                   color: Colors.white.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.mark_email_read,
-                    color: Colors.white, size: 24),
+                child: Icon(
+                  isExpired ? Icons.warning_amber_rounded : Icons.mark_email_read,
+                  color: isExpired ? Colors.amberAccent : Colors.white,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -707,9 +845,7 @@ class _WalletScreenState extends State<WalletScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      _syncStatus.isConnected
-                          ? 'Terhubung: ${_syncStatus.email ?? "Gmail Aktif"}'
-                          : 'Hubungkan Gmail (Read-Only) untuk auto sync Mandiri',
+                      subtitle,
                       style: TextStyle(
                           color: Colors.white.withOpacity(0.7), fontSize: 12),
                     ),
@@ -720,22 +856,14 @@ class _WalletScreenState extends State<WalletScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _syncStatus.isConnected
-                      ? Colors.green.withOpacity(0.2)
-                      : Colors.orange.withOpacity(0.2),
+                  color: badgeBg,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: _syncStatus.isConnected
-                          ? Colors.greenAccent
-                          : Colors.orangeAccent,
-                      width: 0.8),
+                  border: Border.all(color: badgeColor, width: 0.8),
                 ),
                 child: Text(
-                  _syncStatus.isConnected ? 'Aktif' : 'Belum Konek',
+                  badgeText,
                   style: TextStyle(
-                    color: _syncStatus.isConnected
-                        ? Colors.greenAccent
-                        : Colors.orangeAccent,
+                    color: badgeColor,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -744,7 +872,7 @@ class _WalletScreenState extends State<WalletScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          if (_syncStatus.isConnected) ...[
+          if (isConnected) ...[
             Row(
               children: [
                 Icon(Icons.access_time,
@@ -784,6 +912,52 @@ class _WalletScreenState extends State<WalletScreen> {
                       borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: _isSyncing ? null : _handleConnectGmail,
+                  icon: const Icon(Icons.refresh, size: 14, color: Colors.white70),
+                  label: const Text('Perbarui Token',
+                      style: TextStyle(color: Colors.white70, fontSize: 11)),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: _isSyncing ? null : _handleDisconnectGmail,
+                  icon: const Icon(Icons.link_off, size: 14, color: Colors.redAccent),
+                  label: const Text('Putuskan',
+                      style: TextStyle(color: Colors.redAccent, fontSize: 11)),
+                ),
+              ],
+            ),
+          ] else if (isExpired) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _handleConnectGmail,
+                icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
+                label: const Text('Hubungkan Ulang Akun Gmail',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6C63FF),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _handleDisconnectGmail,
+                icon: const Icon(Icons.link_off, size: 14, color: Colors.redAccent),
+                label: const Text('Putuskan Integrasi',
+                    style: TextStyle(color: Colors.redAccent, fontSize: 11)),
               ),
             ),
           ] else ...[

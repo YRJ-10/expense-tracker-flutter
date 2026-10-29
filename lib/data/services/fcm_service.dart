@@ -59,9 +59,23 @@ class FcmService {
         debugPrint('[FCM Foreground] Got message: ${message.notification?.title}');
         final notif = message.notification;
         if (notif != null) {
+          final type = message.data['type'];
+          String channelId = 'cash_reminder_channel';
+          String channelName = 'Pengingat Transaksi Tunai';
+
+          if (type == 'DUE_DATE_REMINDER') {
+            channelId = 'due_date_channel';
+            channelName = 'Pengingat Jatuh Tempo';
+          } else if (type == 'RECURRING_REMINDER') {
+            channelId = 'recurring_channel';
+            channelName = 'Pengingat Transaksi Rutin';
+          }
+
           _showForegroundNotification(
-            title: notif.title ?? 'Pengingat Tunai 💵',
-            body: notif.body ?? 'Ada transaksi tunai hari ini yang belum dicatat?',
+            title: notif.title ?? 'Pengingat Transaksi 💵',
+            body: notif.body ?? '',
+            channelId: channelId,
+            channelName: channelName,
           );
         }
       });
@@ -74,11 +88,13 @@ class FcmService {
   static Future<void> _showForegroundNotification({
     required String title,
     required String body,
+    String channelId = 'cash_reminder_channel',
+    String channelName = 'Pengingat Transaksi Tunai',
   }) async {
-    const androidDetails = AndroidNotificationDetails(
-      'cash_reminder_channel',
-      'Pengingat Transaksi Tunai',
-      channelDescription: 'Pengingat pencatatan transaksi via Firebase Cloud Messaging',
+    final androidDetails = AndroidNotificationDetails(
+      channelId,
+      channelName,
+      channelDescription: 'Pengingat via Firebase Cloud Messaging',
       importance: Importance.max,
       priority: Priority.high,
       playSound: true,
@@ -89,35 +105,58 @@ class FcmService {
       DateTime.now().millisecond,
       title,
       body,
-      const NotificationDetails(android: androidDetails),
+      NotificationDetails(android: androidDetails),
     );
   }
 
-  /// Sinkronkan Token FCM dan preferensi jam pengingat ke Firestore & Backend Worker
+  /// Sinkronkan Token FCM dan semua preferensi notifikasi ke Firestore & Backend Worker
   static Future<void> syncTokenAndPreferences({
     bool? enabled,
     int? hour,
     int? minute,
+    bool? dueDateAlertEnabled,
+    int? dueDateOffsetHours,
+    int? budgetThreshold,
+    bool? recurringAlertEnabled,
+    int? recurringOffsetHours,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || _fcmToken == null) return;
 
-    final isReminderEnabled = enabled ?? await NotificationService.isCashReminderEnabled();
+    final isReminderEnabled =
+        enabled ?? await NotificationService.isCashReminderEnabled();
     final reminderTime = await NotificationService.getCashReminderTime();
     final remHour = hour ?? reminderTime.hour;
     final remMin = minute ?? reminderTime.minute;
+    final isDueEnabled =
+        dueDateAlertEnabled ?? await NotificationService.isDueDateAlertEnabled();
+    final dueHours =
+        dueDateOffsetHours ?? await NotificationService.getDueDateOffsetHours();
+    final budgetLimit =
+        budgetThreshold ?? await NotificationService.getBudgetAlertThreshold();
+    final isRecEnabled =
+        recurringAlertEnabled ?? await NotificationService.isRecurringAlertEnabled();
+    final recHours =
+        recurringOffsetHours ?? await NotificationService.getRecurringOffsetHours();
     final timezoneOffset = DateTime.now().timeZoneOffset.inMinutes;
+
+    final payload = {
+      'fcm_token': _fcmToken,
+      'fcm_token_updated_at': DateTime.now().toIso8601String(),
+      'cash_reminder_enabled': isReminderEnabled,
+      'cash_reminder_hour': remHour,
+      'cash_reminder_minute': remMin,
+      'timezone_offset': timezoneOffset,
+      'due_date_alert_enabled': isDueEnabled,
+      'due_date_offset_hours': dueHours,
+      'budget_alert_threshold': budgetLimit,
+      'recurring_alert_enabled': isRecEnabled,
+      'recurring_offset_hours': recHours,
+    };
 
     // 1. Simpan ke Firestore
     try {
-      await FirestoreService.saveProfile(user.uid, {
-        'fcm_token': _fcmToken,
-        'fcm_token_updated_at': DateTime.now().toIso8601String(),
-        'cash_reminder_enabled': isReminderEnabled,
-        'cash_reminder_hour': remHour,
-        'cash_reminder_minute': remMin,
-        'timezone_offset': timezoneOffset,
-      });
+      await FirestoreService.saveProfile(user.uid, payload);
     } catch (e) {
       debugPrint('[FCM] Error saving to Firestore: $e');
     }
@@ -139,6 +178,11 @@ class FcmService {
           'cashReminderHour': remHour,
           'cashReminderMinute': remMin,
           'timezoneOffset': timezoneOffset,
+          'dueDateAlertEnabled': isDueEnabled,
+          'dueDateOffsetHours': dueHours,
+          'budgetAlertThreshold': budgetLimit,
+          'recurringAlertEnabled': isRecEnabled,
+          'recurringOffsetHours': recHours,
         }),
       ).timeout(const Duration(seconds: 10));
     } catch (e) {
@@ -163,8 +207,8 @@ class FcmService {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          'userId': user?.uid,
           'token': _fcmToken,
+          'userId': user?.uid,
           'title': '🔔 Tes FCM Push Berhasil!',
           'body': 'Notifikasi push cloud dari Cloudflare Worker berhasil tembus ke HP Anda!',
         }),

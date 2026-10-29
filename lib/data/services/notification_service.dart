@@ -20,6 +20,9 @@ class NotificationService {
   static const String _keyDueDateAlert = 'notif_due_date_alert_enabled';
   static const String _keyDueDateOffsetHours = 'notif_due_date_offset_hours';
 
+  static const String _keyRecurringAlert = 'notif_recurring_alert_enabled';
+  static const String _keyRecurringOffsetHours = 'notif_recurring_offset_hours';
+
   static bool _isInitialized = false;
 
   /// Inisialisasi plugin notifikasi & timezone
@@ -121,6 +124,27 @@ class NotificationService {
     await prefs.setInt(_keyDueDateOffsetHours, hours);
   }
 
+  // --- PREFERENSI NOTIFIKASI TRANSAKSI RUTIN ---
+  static Future<bool> isRecurringAlertEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyRecurringAlert) ?? true;
+  }
+
+  static Future<void> setRecurringAlertEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyRecurringAlert, enabled);
+  }
+
+  static Future<int> getRecurringOffsetHours() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_keyRecurringOffsetHours) ?? 24;
+  }
+
+  static Future<void> setRecurringOffsetHours(int hours) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyRecurringOffsetHours, hours);
+  }
+
   static String getDueDateOffsetLabel(int hours) {
     switch (hours) {
       case 72:
@@ -185,57 +209,15 @@ class NotificationService {
     return null;
   }
 
-  // --- PENGINGAT TRANSAKSI TUNAI (HARIAN CUSTOM JAM & MENIT) ---
-  // Pengingat harian kini sepenuhnya ditangani via FCM Cloud. Fungsi ini memastikan alarm lokal lama dibatalkan.
+  // --- PENGINGAT TRANSAKSI TUNAI (HARIAN) ---
+  // Sepenuhnya ditangani via FCM Cloud. Fungsi ini memastikan alarm lokal lama dibatalkan.
   static Future<void> scheduleDailyCashReminder() async {
     await cancelNotification(1001);
   }
 
-  static Future<void> _scheduleNotificationSafe({
-    required int id,
-    required String title,
-    required String body,
-    required tz.TZDateTime scheduledDate,
-    required NotificationDetails details,
-    DateTimeComponents? matchDateTimeComponents,
-  }) async {
-    try {
-      await _notificationsPlugin.zonedSchedule(
-        id,
-        title,
-        body,
-        scheduledDate,
-        details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: matchDateTimeComponents,
-      );
-    } catch (e) {
-      debugPrint('Notification schedule failed for $id: $e');
-    }
-  }
 
-  static Future<void> scheduleCashReminderTestInTwoMinutes() async {
-    const androidDetails = AndroidNotificationDetails(
-      'cash_reminder_channel',
-      'Pengingat Transaksi Tunai',
-      channelDescription:
-          'Mengingatkan untuk mencatat pengeluaran tunai setiap malam',
-      importance: Importance.high,
-      priority: Priority.high,
-    );
 
-    final scheduledDate =
-        tz.TZDateTime.now(tz.local).add(const Duration(minutes: 2));
-    await _scheduleNotificationSafe(
-      id: 1002,
-      title: 'Tes Pengingat Transaksi Tunai',
-      body: 'Ini tes jalur yang sama dengan pengingat tunai harian.',
-      scheduledDate: scheduledDate,
-      details: const NotificationDetails(android: androidDetails),
-    );
-  }
+
 
   static Future<Map<String, dynamic>> getDiagnostics() async {
     final pending = await _notificationsPlugin.pendingNotificationRequests();
@@ -358,39 +340,6 @@ class NotificationService {
       'Tagihan/Utang $personOrName sebesar $amountStr jatuh tempo pada $dueDate.',
       const NotificationDetails(android: androidDetails),
     );
-  }
-
-  /// Mengirim notifikasi pengujian (langsung atau berjadwal hitungan detik)
-  static Future<void> showTestNotification({int delaySeconds = 0}) async {
-    const androidDetails = AndroidNotificationDetails(
-      'test_channel',
-      'Uji Coba Notifikasi',
-      channelDescription: 'Saluran pengujian sistem notifikasi aplikasi',
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
-    );
-
-    if (delaySeconds <= 0) {
-      await _notificationsPlugin.show(
-        9999,
-        '🔔 Tes Notifikasi Berhasil!',
-        'Sistem notifikasi lokal Expense Tracker aktif dan bekerja dengan normal di HP Anda.',
-        const NotificationDetails(android: androidDetails),
-      );
-    } else {
-      final scheduledDate =
-          tz.TZDateTime.now(tz.local).add(Duration(seconds: delaySeconds));
-      await _scheduleNotificationSafe(
-        id: 9999,
-        title: '⏰ Uji Notifikasi ($delaySeconds Detik)',
-        body:
-            'Alarm pengingat berjangka waktu berhasil diterima tepat pada waktunya!',
-        scheduledDate: scheduledDate,
-        details: const NotificationDetails(android: androidDetails),
-      );
-    }
   }
 
   static Future<void> cancelNotification(int id) async {

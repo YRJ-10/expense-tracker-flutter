@@ -309,7 +309,32 @@ export default {
         }
 
         const gmail = new GmailClient(env);
-        const accessToken = await gmail.refreshAccessToken(integration.refresh_token);
+        let accessToken: string;
+        try {
+          accessToken = await gmail.refreshAccessToken(integration.refresh_token);
+        } catch (tokenErr: any) {
+          const errMsg = tokenErr?.message || String(tokenErr);
+          console.error(`[Gmail Sync] Token refresh error for user ${userId}:`, errMsg);
+
+          // Update status di Firestore agar aplikasi mendeteksi token telah expired
+          await firestore.setDocument('gmail_integrations', userId, {
+            ...integration,
+            is_active: false,
+            last_status: 'auth_expired',
+            error: 'Token kedaluwarsa. Silakan hubungkan ulang akun Google Anda.',
+            updated_at: new Date().toISOString(),
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              auth_expired: true,
+              error: 'Token integrasi Gmail telah kedaluwarsa (mode testing 7 hari). Silakan hubungkan ulang akun Google Anda.',
+              connected: false,
+            }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
         // Cari email notifikasi dari Mandiri / bank lainnya yang terjadi setelah saldo awal dibuat
         const wallets = await firestore.queryCollection('wallets', 'user_id', 'EQUAL', userId);
@@ -457,10 +482,15 @@ export default {
         const firestore = new FirestoreClient(env);
         const integration = await firestore.getDocument('gmail_integrations', userId);
 
-        if (!integration) {
+        if (!integration || !integration.is_active || integration.last_status === 'auth_expired') {
           return new Response(
             JSON.stringify({
               isConnected: false,
+              isExpired: integration?.last_status === 'auth_expired',
+              email: integration?.email,
+              lastSyncedAt: integration?.last_synced_at,
+              lastStatus: integration?.last_status ?? 'not_connected',
+              lastCount: integration?.last_synced_count || 0,
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -468,12 +498,29 @@ export default {
 
         return new Response(
           JSON.stringify({
-            isConnected: !!integration.is_active,
+            isConnected: true,
+            isExpired: false,
             email: integration.email,
             lastSyncedAt: integration.last_synced_at,
             lastStatus: integration.last_status,
             lastCount: integration.last_synced_count || 0,
           }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+
+      // 5b. API Disconnect: Putuskan integrasi akun Gmail
+      if (path === '/api/disconnect' && request.method === 'POST') {
+        const userId = authUserUid;
+        const firestore = new FirestoreClient(env);
+        try {
+          await firestore.deleteDocument('gmail_integrations', userId);
+        } catch (e) {
+          console.error('Error disconnecting Gmail:', e);
+        }
+        return new Response(
+          JSON.stringify({ success: true, message: 'Integrasi Gmail berhasil diputuskan.' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -676,7 +723,19 @@ Format output WAJIB JSON persis seperti ini:
       // 9. Simpan FCM Token & Preferensi Pengingat User
       if (path === '/api/notifications/save-fcm-token' && request.method === 'POST') {
         const body = (await request.json()) as any;
-        const { userId: bodyUserId, fcmToken, cashReminderEnabled, cashReminderHour, cashReminderMinute, timezoneOffset } = body;
+        const {
+          userId: bodyUserId,
+          fcmToken,
+          cashReminderEnabled,
+          cashReminderHour,
+          cashReminderMinute,
+          timezoneOffset,
+          dueDateAlertEnabled,
+          dueDateOffsetHours,
+          budgetAlertThreshold,
+          recurringAlertEnabled,
+          recurringOffsetHours,
+        } = body;
         if (bodyUserId && bodyUserId !== authUserUid) {
           return new Response(JSON.stringify({ error: 'Forbidden: Tidak diizinkan mengakses data user lain.' }), {
             status: 403,
@@ -700,9 +759,14 @@ Format output WAJIB JSON persis seperti ini:
           fcm_token: fcmToken,
           fcm_token_updated_at: new Date().toISOString(),
           cash_reminder_enabled: cashReminderEnabled !== undefined ? cashReminderEnabled : existing.cash_reminder_enabled ?? true,
-          cash_reminder_hour: cashReminderHour !== undefined ? cashReminderHour : existing.cash_reminder_hour ?? 22,
-          cash_reminder_minute: cashReminderMinute !== undefined ? cashReminderMinute : existing.cash_reminder_minute ?? 0,
+          cash_reminder_hour: cashReminderHour !== undefined ? cashReminderHour : existing.cash_reminder_hour ?? 20,
+          cash_reminder_minute: cashReminderMinute !== undefined ? cashReminderMinute : existing.cash_reminder_minute ?? 30,
           timezone_offset: timezoneOffset !== undefined ? timezoneOffset : existing.timezone_offset ?? 420,
+          due_date_alert_enabled: dueDateAlertEnabled !== undefined ? dueDateAlertEnabled : existing.due_date_alert_enabled ?? true,
+          due_date_offset_hours: dueDateOffsetHours !== undefined ? dueDateOffsetHours : existing.due_date_offset_hours ?? 24,
+          budget_alert_threshold: budgetAlertThreshold !== undefined ? budgetAlertThreshold : existing.budget_alert_threshold ?? 80,
+          recurring_alert_enabled: recurringAlertEnabled !== undefined ? recurringAlertEnabled : existing.recurring_alert_enabled ?? true,
+          recurring_offset_hours: recurringOffsetHours !== undefined ? recurringOffsetHours : existing.recurring_offset_hours ?? 24,
         });
 
         return new Response(
@@ -777,7 +841,14 @@ Format output WAJIB JSON persis seperti ini:
   async scheduled(event: any, env: Env, ctx: any): Promise<void> {
     const firestore = new FirestoreClient(env);
     const fcm = new FcmClient(env, firestore);
-    const res = await fcm.processCashReminders();
-    console.log(`[CRON] Processed cash reminders: sent ${res.sentCount}, errors: ${res.errors.length}`);
+
+    const cashRes = await fcm.processCashReminders();
+    console.log(`[CRON] Processed cash reminders: sent ${cashRes.sentCount}, errors: ${cashRes.errors.length}`);
+
+    const debtRes = await fcm.processDebtDueReminders();
+    console.log(`[CRON] Processed debt due reminders: sent ${debtRes.sentCount}, errors: ${debtRes.errors.length}`);
+
+    const recRes = await fcm.processRecurringReminders();
+    console.log(`[CRON] Processed recurring reminders: sent ${recRes.sentCount}, errors: ${recRes.errors.length}`);
   },
 };

@@ -6,6 +6,23 @@ class BiometricService {
   static final LocalAuthentication _auth = LocalAuthentication();
   static const String _keyBiometricEnabled = 'biometric_lock_enabled';
   static const String _keyAllowPinFallback = 'biometric_allow_pin_fallback';
+  static DateTime? _lastAuthTime;
+
+  /// Rekam waktu sukses autentikasi
+  static void recordAuthSuccess() {
+    _lastAuthTime = DateTime.now();
+  }
+
+  /// Cek apakah sesi autentikasi biometrik masih valid (default 5 menit)
+  static bool isAuthSessionValid({int timeoutMinutes = 5}) {
+    if (_lastAuthTime == null) return false;
+    return DateTime.now().difference(_lastAuthTime!).inMinutes < timeoutMinutes;
+  }
+
+  /// Hapus sesi autentikasi saat ini (misal saat logout)
+  static void clearAuthSession() {
+    _lastAuthTime = null;
+  }
 
   /// Cek apakah perangkat mendukung autentikasi biometrik / sidik jari
   static Future<bool> isBiometricSupported() async {
@@ -60,7 +77,7 @@ class BiometricService {
       final allowPin = await isPinFallbackAllowed();
       final onlyBio = biometricOnly ?? !allowPin;
 
-      return await _auth.authenticate(
+      final success = await _auth.authenticate(
         localizedReason: reason,
         options: AuthenticationOptions(
           biometricOnly: onlyBio,
@@ -68,6 +85,10 @@ class BiometricService {
           useErrorDialogs: true,
         ),
       );
+      if (success) {
+        recordAuthSuccess();
+      }
+      return success;
     } on PlatformException catch (_) {
       return false;
     } catch (_) {

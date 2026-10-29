@@ -675,71 +675,7 @@ class FirestoreService {
   }
 
   static Future<void> checkUpcomingDueDates(String userId) async {
-    try {
-      final debts = await getDebts(userId);
-      final now = DateTime.now();
-      final offsetHours = await NotificationService.getDueDateOffsetHours();
-
-      for (final debt in debts) {
-        final isPaid = debt['is_paid'] == true;
-        final isRecurring = debt['is_recurring'] == true;
-        final recurringDay = (debt['recurring_day'] as num?)?.toInt();
-        final dueStr = debt['due_date']?.toString();
-
-        // Hitung target due date berikutnya
-        final targetDueDate = NotificationService.calculateNextDueDate(
-          isRecurring: isRecurring,
-          recurringDay: recurringDay,
-          dueDateStr: dueStr,
-          isPaid: isPaid,
-        );
-
-        if (targetDueDate == null) continue;
-
-        // Jika bukan utang berulang dan sudah lunas, lewati
-        if (!isRecurring && isPaid) continue;
-
-        // Hitung selisih jam
-        final diffHours = targetDueDate.difference(now).inHours;
-
-        // Cek apakah masuk dalam jendela alert sesuai offset preferensi
-        bool shouldAlert = false;
-        if (offsetHours == 0) {
-          shouldAlert = diffHours >= 0 && diffHours <= 24;
-        } else {
-          shouldAlert = diffHours >= 0 && diffHours <= offsetHours;
-        }
-
-        if (shouldAlert) {
-          final person = debt['person_name']?.toString() ?? 'Seseorang';
-          final amount = (debt['remaining_amount'] as num?)?.toDouble() ??
-              ((debt['amount'] as num?)?.toDouble() ?? 0.0);
-          final isBorrowed = debt['type'] == 'borrowed';
-
-          String dueLabel;
-          if (diffHours <= 0) {
-            dueLabel = 'Hari ini (Segera)';
-          } else if (diffHours < 24) {
-            dueLabel = '$diffHours jam lagi';
-          } else if (diffHours < 48) {
-            dueLabel = 'Besok (~$diffHours jam lagi)';
-          } else {
-            final days = (diffHours / 24).ceil();
-            dueLabel = '$days hari lagi';
-          }
-
-          await NotificationService.showDueDateAlert(
-            title: isBorrowed ? 'Bayar Utang' : 'Tagih Piutang',
-            personOrName: person,
-            amount: amount,
-            dueDate: dueLabel,
-          );
-        }
-      }
-    } catch (e) {
-      // ignore: avoid_print
-      print('checkUpcomingDueDates failed: $e');
-    }
+    // Pengingat jatuh tempo kini sepenuhnya diproses oleh Backend Cloudflare Worker melalui FCM Push Notification
   }
 }
 

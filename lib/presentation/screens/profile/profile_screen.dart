@@ -29,9 +29,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _cashReminderEnabled = true;
   bool _budgetAlertEnabled = true;
   bool _dueDateAlertEnabled = true;
+  bool _recurringAlertEnabled = true;
   TimeOfDay _cashReminderTime = const TimeOfDay(hour: 20, minute: 30);
   int _budgetAlertThreshold = 80;
   int _dueDateOffsetHours = 24;
+  int _recurringOffsetHours = 24;
 
   @override
   void initState() {
@@ -58,9 +60,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final cashReminder = await NotificationService.isCashReminderEnabled();
     final reminderTime = await NotificationService.getCashReminderTime();
     final budgetAlert = await NotificationService.isBudgetAlertEnabled();
-    final budgetThreshold = await NotificationService.getBudgetAlertThreshold();
-    final dueDateAlert = await NotificationService.isDueDateAlertEnabled();
-    final dueDateOffset = await NotificationService.getDueDateOffsetHours();
+    final budgetThreshold = (profile?['budget_alert_threshold'] as num?)?.toInt() ??
+        await NotificationService.getBudgetAlertThreshold();
+    final dueDateAlert = (profile?['due_date_alert_enabled'] as bool?) ??
+        await NotificationService.isDueDateAlertEnabled();
+    final dueDateOffset = (profile?['due_date_offset_hours'] as num?)?.toInt() ??
+        await NotificationService.getDueDateOffsetHours();
+    final recurringAlert = (profile?['recurring_alert_enabled'] as bool?) ??
+        await NotificationService.isRecurringAlertEnabled();
+    final recurringOffset = (profile?['recurring_offset_hours'] as num?)?.toInt() ??
+        await NotificationService.getRecurringOffsetHours();
 
     if (mounted) {
       setState(() {
@@ -78,6 +87,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _budgetAlertThreshold = budgetThreshold;
         _dueDateAlertEnabled = dueDateAlert;
         _dueDateOffsetHours = dueDateOffset;
+        _recurringAlertEnabled = recurringAlert;
+        _recurringOffsetHours = recurringOffset;
         _isLoading = false;
       });
     }
@@ -177,6 +188,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: () async {
                     Navigator.pop(ctx);
                     await NotificationService.setDueDateOffsetHours(h);
+                    await FcmService.syncTokenAndPreferences(dueDateOffsetHours: h);
                     if (mounted) {
                       setState(() => _dueDateOffsetHours = h);
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -196,159 +208,82 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _showTestNotificationSheet() async {
+  Future<void> _showRecurringOffsetPicker() async {
+    final options = [
+      {'hours': 72, 'label': 'H-3 Hari (72 Jam sebelum)'},
+      {'hours': 48, 'label': 'H-2 Hari (48 Jam sebelum)'},
+      {'hours': 24, 'label': 'H-1 Hari (24 Jam sebelum) - Standar'},
+      {'hours': 12, 'label': 'H-12 Jam sebelum'},
+      {'hours': 6, 'label': 'H-6 Jam sebelum'},
+      {'hours': 3, 'label': 'H-3 Jam sebelum'},
+      {'hours': 0, 'label': 'Hari H (Hari Eksekusi)'},
+    ];
+
     await showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
       backgroundColor: const Color(0xFF1A1A2E),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
-        return SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Padding(
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Text(
-                  '🧪 Uji Coba Notifikasi',
+                  'Pilih Waktu Pengingat Transaksi Rutin',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold),
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Text(
-                  'Pilih metode pengujian untuk memverifikasi banner notifikasi di HP Anda.',
-                  style: TextStyle(color: Colors.white54, fontSize: 12),
-                ),
-              ),
               const SizedBox(height: 12),
-              ListTile(
-                leading: const Icon(Icons.flash_on, color: Colors.amberAccent),
-                title: const Text('Kirim Seketika (0 Detik)',
-                    style: TextStyle(color: Colors.white)),
-                subtitle: const Text(
-                    'Notifikasi langsung muncul detik ini juga',
-                    style: TextStyle(color: Colors.white38, fontSize: 11)),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await NotificationService.showTestNotification(
-                      delaySeconds: 0);
-                },
-              ),
-              ListTile(
-                leading:
-                    const Icon(Icons.timer_outlined, color: Colors.cyanAccent),
-                title: const Text('Jadwalkan 10 Detik Lagi',
-                    style: TextStyle(color: Colors.white)),
-                subtitle: const Text(
-                    'Kunci layar HP Anda sekarang untuk tes alarm saat layar mati',
-                    style: TextStyle(color: Colors.white38, fontSize: 11)),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await NotificationService.showTestNotification(
-                      delaySeconds: 10);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                            'Alarm dijadwalkan dalam 10 detik! Coba kunci layar HP Anda.'),
-                        backgroundColor: Color(0xFF6C63FF),
-                        duration: Duration(seconds: 4),
-                      ),
-                    );
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.schedule, color: Color(0xFF6C63FF)),
-                title: const Text('Jadwalkan 1 Menit Lagi',
-                    style: TextStyle(color: Colors.white)),
-                subtitle: const Text('Uji ketepatan alarm berjangka 60 detik',
-                    style: TextStyle(color: Colors.white38, fontSize: 11)),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await NotificationService.showTestNotification(
-                      delaySeconds: 60);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Alarm dijadwalkan dalam 1 menit!'),
-                        backgroundColor: Color(0xFF6C63FF),
-                      ),
-                    );
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.notifications_active_outlined,
-                    color: Colors.greenAccent),
-                title: const Text('Tes Pengingat Tunai 2 Menit',
-                    style: TextStyle(color: Colors.white)),
-                subtitle: const Text(
-                    'Memakai channel dan scheduler pengingat tunai harian',
-                    style: TextStyle(color: Colors.white38, fontSize: 11)),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await NotificationService
-                      .scheduleCashReminderTestInTwoMinutes();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                            'Tes pengingat tunai dijadwalkan 2 menit lagi.'),
-                        backgroundColor: Color(0xFF6C63FF),
-                      ),
-                    );
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.cloud_done_outlined,
-                    color: Colors.lightBlueAccent),
-                title: const Text('Tes Push FCM Cloud (Langsung)',
-                    style: TextStyle(color: Colors.white)),
-                subtitle: const Text(
-                    'Kirim push notifikasi via Cloudflare Worker ke HP ini',
-                    style: TextStyle(color: Colors.white38, fontSize: 11)),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Mengirim sinyal FCM dari cloud...'),
-                      backgroundColor: Color(0xFF6C63FF),
-                      duration: Duration(seconds: 2),
+              ...options.map((opt) {
+                final int h = opt['hours'] as int;
+                final String lbl = opt['label'] as String;
+                final bool isSelected = _recurringOffsetHours == h;
+
+                return ListTile(
+                  title: Text(
+                    lbl,
+                    style: TextStyle(
+                      color:
+                          isSelected ? const Color(0xFF6C63FF) : Colors.white,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
-                  );
-                  final res = await FcmService.testPushNotification();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(res['success'] == true
-                            ? '✅ Push FCM berhasil terkirim dari Cloudflare ke HP Anda!'
-                            : '❌ Gagal kirim FCM: ${res['error']}'),
-                        backgroundColor: res['success'] == true
-                            ? Colors.green
-                            : Colors.redAccent,
-                        duration: const Duration(seconds: 4),
-                      ),
-                    );
-                  }
-                },
-              ),
+                  ),
+                  trailing: isSelected
+                      ? const Icon(Icons.check_circle, color: Color(0xFF6C63FF))
+                      : null,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await NotificationService.setRecurringOffsetHours(h);
+                    await FcmService.syncTokenAndPreferences(recurringOffsetHours: h);
+                    if (mounted) {
+                      setState(() => _recurringOffsetHours = h);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Waktu pengingat rutin diatur: $lbl'),
+                          backgroundColor: const Color(0xFF6C63FF),
+                        ),
+                      );
+                    }
+                  },
+                );
+              }),
             ],
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
   Future<void> _showNotificationDiagnostics() async {
     final data = await NotificationService.getDiagnostics();
@@ -463,6 +398,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await NotificationService.setDueDateAlertEnabled(allow);
     if (mounted) {
       setState(() => _dueDateAlertEnabled = allow);
+    }
+  }
+
+  Future<void> _toggleRecurringAlert(bool allow) async {
+    await NotificationService.setRecurringAlertEnabled(allow);
+    await FcmService.syncTokenAndPreferences(recurringAlertEnabled: allow);
+    if (mounted) {
+      setState(() => _recurringAlertEnabled = allow);
     }
   }
 
@@ -883,8 +826,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     max: 95,
                                     divisions: 9,
                                     label: '$_budgetAlertThreshold%',
-                                    onChanged: (val) =>
-                                        _changeBudgetThreshold(val.round()),
+                                    onChanged: (val) {
+                                      setState(() => _budgetAlertThreshold = val.round());
+                                    },
+                                    onChangeEnd: (val) async {
+                                      final roundVal = val.round();
+                                      await NotificationService.setBudgetAlertThreshold(roundVal);
+                                      await FcmService.syncTokenAndPreferences(budgetThreshold: roundVal);
+                                    },
                                   ),
                                 ),
                               ],
@@ -948,24 +897,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                           ),
+
                         const Divider(color: Colors.white10, height: 1),
-                        ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.science_outlined,
-                              color: Colors.purpleAccent, size: 20),
-                          title: const Text('Uji Notifikasi Perangkat',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold)),
-                          subtitle: const Text(
-                              'Tes langsung apakah banner notifikasi muncul di HP Anda',
-                              style: TextStyle(
-                                  color: Colors.white54, fontSize: 11)),
-                          trailing: const Icon(Icons.chevron_right,
-                              color: Colors.white38, size: 18),
-                          onTap: _showTestNotificationSheet,
+                        SwitchListTile(
+                          secondary:
+                              const Icon(Icons.repeat_rounded, color: Colors.purpleAccent),
+                          title: const Text(
+                            'Pengingat Transaksi Rutin',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            'Pemberitahuan ' + NotificationService.getDueDateOffsetLabel(_recurringOffsetHours) + ' sebelum jadwal transaksi',
+                            style: const TextStyle(
+                                color: Colors.white54, fontSize: 12),
+                          ),
+                          value: _recurringAlertEnabled,
+                          activeThumbColor: const Color(0xFF6C63FF),
+                          onChanged: (val) => _toggleRecurringAlert(val),
                         ),
+                        if (_recurringAlertEnabled)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                            child: InkWell(
+                              onTap: _showRecurringOffsetPicker,
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0F0F1A),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color:
+                                          Colors.purpleAccent.withOpacity(0.4)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.timer_outlined,
+                                        color: Colors.purpleAccent, size: 16),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        'Waktu Pengingat: ' + NotificationService.getDueDateOffsetLabel(_recurringOffsetHours),
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.arrow_drop_down,
+                                        color: Colors.white54, size: 18),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         const Divider(color: Colors.white10, height: 1),
                         ListTile(
                           dense: true,

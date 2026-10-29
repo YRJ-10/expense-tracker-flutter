@@ -9,6 +9,7 @@ class GmailSyncResult {
   final int newTransactionsCount;
   final String? lastSyncedAt;
   final String? error;
+  final bool isExpired;
 
   GmailSyncResult({
     required this.success,
@@ -16,11 +17,13 @@ class GmailSyncResult {
     this.newTransactionsCount = 0,
     this.lastSyncedAt,
     this.error,
+    this.isExpired = false,
   });
 }
 
 class GmailSyncStatus {
   final bool isConnected;
+  final bool isExpired;
   final String? email;
   final String? lastSyncedAt;
   final String? lastStatus;
@@ -28,6 +31,7 @@ class GmailSyncStatus {
 
   GmailSyncStatus({
     required this.isConnected,
+    this.isExpired = false,
     this.email,
     this.lastSyncedAt,
     this.lastStatus,
@@ -71,8 +75,12 @@ class GmailSyncService {
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
+        final isExp = data['isExpired'] == true ||
+            data['lastStatus'] == 'auth_expired' ||
+            data['lastStatus'] == 'expired';
         return GmailSyncStatus(
-          isConnected: data['isConnected'] == true,
+          isConnected: !isExp && data['isConnected'] == true,
+          isExpired: isExp,
           email: data['email'],
           lastSyncedAt: data['lastSyncedAt'],
           lastStatus: data['lastStatus'],
@@ -101,6 +109,24 @@ class GmailSyncService {
       );
 
       final data = jsonDecode(res.body);
+      final isExp = res.statusCode == 401 ||
+          data['auth_expired'] == true ||
+          (data['error']
+                  ?.toString()
+                  .toLowerCase()
+                  .contains('invalid_grant') ??
+              false) ||
+          (data['error']
+                  ?.toString()
+                  .toLowerCase()
+                  .contains('kedaluwarsa') ??
+              false) ||
+          (data['error']
+                  ?.toString()
+                  .toLowerCase()
+                  .contains('expired') ??
+              false);
+
       if (res.statusCode == 200 && data['success'] == true) {
         return GmailSyncResult(
           success: true,
@@ -111,12 +137,18 @@ class GmailSyncService {
       } else {
         return GmailSyncResult(
           success: false,
+          isExpired: isExp,
           error: data['error'] ?? 'Gagal melakukan sinkronisasi.',
         );
       }
     } catch (e) {
+      final errStr = e.toString().toLowerCase();
+      final isExp = errStr.contains('invalid_grant') ||
+          errStr.contains('kedaluwarsa') ||
+          errStr.contains('expired');
       return GmailSyncResult(
         success: false,
+        isExpired: isExp,
         error: e.toString(),
       );
     }
@@ -151,6 +183,28 @@ class GmailSyncService {
     } catch (e) {
       // handle error
     }
+    return false;
+  }
+
+  // 5. Putuskan integrasi akun Gmail
+  static Future<bool> disconnectGmail(String userId) async {
+    try {
+      final token = await apiToken;
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/disconnect'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'userId': userId,
+        }),
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return data['success'] == true;
+      }
+    } catch (_) {}
     return false;
   }
 }

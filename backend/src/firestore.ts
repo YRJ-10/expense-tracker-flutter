@@ -171,6 +171,17 @@ export class FirestoreClient {
     }
   }
 
+  async deleteDocument(collection: string, docId: string): Promise<void> {
+    const token = await this.getAccessToken();
+    const res = await fetch(`${this.baseUrl}/${collection}/${docId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Delete doc error: ${res.status} ${await res.text()}`);
+    }
+  }
+
   async queryCollection(collection: string, field: string, operator: string, value: any): Promise<Array<{ id: string; data: Record<string, any> }>> {
     const token = await this.getAccessToken();
     const query = {
