@@ -471,6 +471,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('has_seen_onboarding', true);
+    await BiometricService.clearBiometricUnlock();
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/login');

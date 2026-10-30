@@ -52,34 +52,34 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     if (paused == null) return;
 
-    // Grace period timeout: 5 menit (300 detik)
-    // Jangan kunci jika sesi auth masih valid (< 5 menit)
-    if (BiometricService.isAuthSessionValid(timeoutMinutes: 5)) {
+    // Hanya kunci jika pengguna mengaktifkan gembok biometrik di pengaturan
+    final isBioEnabled = await BiometricService.isBiometricEnabled();
+    if (!isBioEnabled) return;
+
+    // Grace period: Jangan kunci jika aplikasi hanya berpindah jendela / background < 5 menit (300 detik)
+    if (DateTime.now().difference(paused).inSeconds < 300) {
       return;
     }
 
-    // Jangan kunci jika aplikasi hanya berpindah jendela / background < 5 menit
-    if (DateTime.now().difference(paused).inSeconds < 300) {
+    // Dan jangan kunci jika gembok biometrik belum kedaluwarsa (< 5 menit)
+    if (!BiometricService.isBiometricLockExpired(timeoutMinutes: 5)) {
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
     if (user != null && !_isLockScreenShowing) {
-      final isBioEnabled = await BiometricService.isBiometricEnabled();
-      if (isBioEnabled) {
-        _isLockScreenShowing = true;
-        _navigatorKey.currentState?.push(
-          MaterialPageRoute(
-            builder: (context) => BiometricLockScreen(
-              onUnlocked: () {
-                BiometricService.recordAuthSuccess();
-                _isLockScreenShowing = false;
-                Navigator.pop(context);
-              },
-            ),
+      _isLockScreenShowing = true;
+      _navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (context) => BiometricLockScreen(
+            onUnlocked: () async {
+              await BiometricService.recordBiometricUnlock();
+              _isLockScreenShowing = false;
+              _navigatorKey.currentState?.pop();
+            },
           ),
-        );
-      }
+        ),
+      );
     }
   }
 

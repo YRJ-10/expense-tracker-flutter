@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:expense_tracker_flutter/config/app_config.dart';
-import 'package:expense_tracker_flutter/data/services/gmail_sync_service.dart';
+
 
 class ScannedReceiptResult {
   final String merchant;
@@ -114,6 +114,6 @@ class ReceiptScannerService {
     } catch (e) {
       rethrow;
     }
-    return null;
+
   }
 }

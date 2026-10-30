@@ -42,6 +42,8 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
     });
 
     if (success) {
+      await BiometricService.recordBiometricUnlock();
+      if (!mounted) return;
       if (widget.onUnlocked != null) {
         widget.onUnlocked!();
       } else {

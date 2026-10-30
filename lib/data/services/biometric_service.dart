@@ -6,22 +6,23 @@ class BiometricService {
   static final LocalAuthentication _auth = LocalAuthentication();
   static const String _keyBiometricEnabled = 'biometric_lock_enabled';
   static const String _keyAllowPinFallback = 'biometric_allow_pin_fallback';
-  static DateTime? _lastAuthTime;
+  static DateTime? _lastUnlockTime;
 
-  /// Rekam waktu sukses autentikasi
-  static void recordAuthSuccess() {
-    _lastAuthTime = DateTime.now();
+  /// Rekam waktu berhasil membuka gembok biometrik (in-memory)
+  static Future<void> recordBiometricUnlock() async {
+    _lastUnlockTime = DateTime.now();
   }
 
-  /// Cek apakah sesi autentikasi biometrik masih valid (default 5 menit)
-  static bool isAuthSessionValid({int timeoutMinutes = 5}) {
-    if (_lastAuthTime == null) return false;
-    return DateTime.now().difference(_lastAuthTime!).inMinutes < timeoutMinutes;
+  /// Cek apakah gembok biometrik sudah kedaluwarsa (perlu scan ulang)
+  /// Default: 5 menit (300 detik)
+  static bool isBiometricLockExpired({int timeoutMinutes = 5}) {
+    if (_lastUnlockTime == null) return true;
+    return DateTime.now().difference(_lastUnlockTime!).inMinutes >= timeoutMinutes;
   }
 
-  /// Hapus sesi autentikasi saat ini (misal saat logout)
-  static void clearAuthSession() {
-    _lastAuthTime = null;
+  /// Hapus status unlock biometrik (misal saat logout manual dari profil)
+  static Future<void> clearBiometricUnlock() async {
+    _lastUnlockTime = null;
   }
 
   /// Cek apakah perangkat mendukung autentikasi biometrik / sidik jari
@@ -86,7 +87,7 @@ class BiometricService {
         ),
       );
       if (success) {
-        recordAuthSuccess();
+        await recordBiometricUnlock();
       }
       return success;
     } on PlatformException catch (_) {
