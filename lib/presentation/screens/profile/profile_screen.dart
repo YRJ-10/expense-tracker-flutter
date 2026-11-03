@@ -1090,7 +1090,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 40),
                   Center(
                     child: Text(
-                      'Expense Tracker • Bank Sync v3.3.1',
+                      'Expense Tracker • Bank Sync v3.3.2',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.2),
                         fontSize: 12,

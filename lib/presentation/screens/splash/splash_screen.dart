@@ -18,12 +18,25 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAuth() async {
-    await Future.delayed(const Duration(seconds: 1));
+    // Tampilkan logo splash sejenak agar transisi visual halus
+    await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
 
-    // Pastikan status akun tersimpan (permanen) dimuat oleh Firebase Auth
-    final user = FirebaseAuth.instance.currentUser ??
-        await FirebaseAuth.instance.authStateChanges().first;
+    // Pastikan status akun tersimpan (permanen) dimuat oleh Firebase Auth.
+    // Hindari .first langsung karena stream memancarkan nilai null in-memory
+    // sebelum thread background Android selesai mendekripsi token dari KeyStore.
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      try {
+        user = await FirebaseAuth.instance
+            .authStateChanges()
+            .firstWhere((u) => u != null)
+            .timeout(const Duration(milliseconds: 2500));
+      } catch (_) {
+        user = FirebaseAuth.instance.currentUser;
+      }
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
 
@@ -76,7 +89,7 @@ class _SplashScreenState extends State<SplashScreen> {
             Text(
               'Kelola keuanganmu dengan mudah',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 fontSize: 14,
               ),
             ),
