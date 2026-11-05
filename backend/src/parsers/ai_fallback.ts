@@ -7,7 +7,7 @@ export async function parseWithGeminiFallback(
   htmlOrText: string,
   apiKey: string
 ): Promise<ParsedTransaction | null> {
-  // Bersihkan HTML tag berlebih namun pertahankan spasi agar teks tabel tetap terbaca
+  // Bersihkan HTML tag berlebih namun pertahankan baris agar teks tabel tetap terbaca terstruktur
   const cleanedBody = htmlOrText
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -16,73 +16,67 @@ export async function parseWithGeminiFallback(
     .replace(/<\/tr>/gi, '\n')
     .replace(/<\/td>/gi, ' | ')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/[^\S\r\n]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\n')
     .trim()
     .slice(0, 4500);
 
-  const prompt = `Anda adalah parser transaksi keuangan khusus email Bank Mandiri (Livin'). Tugas Anda membaca isi email notifikasi transaksi dan mengubahnya menjadi SATU objek JSON yang valid.
+  const prompt = `Anda adalah parser email transaksi Bank Mandiri (Livin'). Ekstrak data transaksi dari email menjadi SATU objek JSON valid.
 
-PRINSIP UTAMA:
-* Gunakan HANYA informasi yang terdapat dalam email.
-* Jangan mengarang nominal, tanggal, nama, rekening, reference ID, atau detail transaksi.
-* Jika suatu field tidak tersedia, gunakan null.
-* Fokus pada PERUBAHAN SALDO REKENING sebagai dasar menentukan income atau expense.
+ATURAN EKSTRAKSI:
 
-LANGKAH ANALISIS:
+1. VALIDITAS (valid):
+   Kembalikan {"valid": false} jika email adalah: transaksi gagal/dibatalkan/ditolak, promo/penawaran marketing, notifikasi OTP/keamanan, atau informasi non-transaksi finansial.
 
-1. TENTUKAN STATUS VALIDITAS
-   Kembalikan {"valid": false} jika email merupakan:
-   * Transaksi GAGAL / Ditolak / Dibatalkan / Kadaluarsa / Saldo Tidak Cukup.
-   * Email promo, penawaran marketing, survei, atau pengumuman.
-   * Notifikasi keamanan, OTP, reset password, atau aktivasi akun.
-   * Informasi non-transaksi finansial.
+2. ARAH DANA (type):
+   * "expense" = Uang keluar (Transfer keluar, QRIS, Top Up e-Wallet, Pembayaran tagihan, Pembelian, Tarik tunai, Debit).
+   * "income"  = Uang masuk (Transfer masuk, Gaji, Cashback/Refund ke rekening).
 
-2. TENTUKAN ARAH DANA (type)
-   * "expense" = Uang keluar / berkurang dari rekening pengguna (Transfer ke orang lain, Pembayaran QRIS, Pembayaran Tagihan, Top Up e-Wallet, Beli Pulsa, Debit, Tarik Tunai).
-   * "income"  = Uang masuk / bertambah ke rekening pengguna (Menerima transfer dari orang lain, Gaji, Cashback masuk saldo, Refund masuk rekening).
+3. NOMINAL TRANSAKSI (amount):
+   Kembalikan SATU angka murni (number, tanpa titik/koma/Rp) yang merupakan total dana yang memotong/menambah rekening:
+   
+   * PRIORITAS 1 (Jika ada rincian yang memuat kata "TOTAL"):
+     Wajib ambil angka pada baris Total tersebut.
+     Persamaan kata: "Total Transaksi", "Total Debet", "Total Pembayaran", "Total Tagihan", "Total Biaya", "Jumlah Total", "Total".
+   
+   * PRIORITAS 2 (Jika TIDAK ADA baris Total sama sekali):
+     Ambil angka pada baris nominal utama transaksi.
+     Persamaan kata: "Nominal Top-up", "Nominal Transaksi", "Nominal Pembayaran", "Nominal Transfer", "Nominal", "Jumlah Transaksi", "Nilai Transaksi", "Jumlah Pembayaran".
+   
+   * PERHATIAN / LARANGAN:
+     Jangan pernah mengambil angka "Sisa Saldo", "Saldo Akhir", "Saldo Rekening", atau "Saldo Setelah Transaksi".
 
-3. TENTUKAN AMOUNT & BIAYA ADMIN (amount & admin_fee)
-   * "amount" harus merupakan TOTAL NILAI RIIL yang memotong/menambah saldo rekening.
-   * Jika ada "Nominal Transaksi" DAN "Biaya Transaksi / Biaya Admin":
-     - Jika email sudah mencantumkan "Total Transaksi / Total Debet", prioritaskan angka total tersebut (JANGAN dijumlahkan lagi agar tidak double counting).
-     - Jika email HANYA mencantumkan Nominal dan Biaya secara terpisah tanpa baris Total, jumlahkan keduanya menjadi "amount".
-   * Cantumkan nominal biaya tersebut pada field "admin_fee" (gunakan 0 jika tidak ada biaya).
-   * Nilai saldo setelah transaksi BUKAN amount.
+4. TANGGAL (date):
+   Waktu transaksi dalam format ISO 8601 timezone WIB (+07:00), contoh: "2026-11-04T14:30:00+07:00". Jika jam tidak ada, default jam 12:00:00+07:00.
 
-4. TENTUKAN TANGGAL (date)
-   * Gunakan waktu transaksi pada struk email dan konversikan ke format ISO 8601 dengan timezone WIB (+07:00).
-   * Contoh: "2026-10-07T11:20:00+07:00". Jika jam tidak ada, gunakan default jam 12:00:00+07:00.
-
-5. TENTUKAN DESKRIPSI (description)
-   * Buat deskripsi yang singkat, spesifik, dan manusiawi.
-   * Transfer: "Transfer ke [Nama Penerima] ([Bank jika ada])"
-   * QRIS: "QRIS di [Nama Merchant]"
-   * Top Up: "Top Up [Nama E-Wallet / No]"
-   * Tagihan: "Pembayaran [Nama Biller/PLN/BPJS/dll]"
+5. DESKRIPSI (description):
+   Deskripsi singkat manusiawi:
+   * Top Up: "Top Up [Nama e-Wallet, misal ShopeePay / DANA / GoPay / OVO]"
+   * QRIS: "QRIS [Nama Merchant]"
+   * Transfer: "Transfer ke [Nama Penerima / Bank]"
+   * Tagihan: "Pembayaran [Nama Biller, misal PLN / BPJS / Tagihan]"
    * Pemasukan: "Transfer Masuk dari [Nama Pengirim]"
 
-6. TENTUKAN KATEGORI (category)
-   Pilih salah satu kategori baku berikut yang paling relevan:
-   * Untuk expense: "Makanan", "Transportasi", "Belanja", "Tagihan", "Top Up & E-Wallet", "Transfer", "Kartu Kredit", "Lainnya"
-   * Untuk income : "Transfer Masuk", "Gaji", "Investasi", "Lainnya"
+6. KATEGORI (category):
+   * Expense: "Top Up & E-Wallet", "Makanan", "Transportasi", "Belanja", "Tagihan", "Transfer", "Lainnya"
+   * Income : "Transfer Masuk", "Gaji", "Investasi", "Lainnya"
 
-7. REKENING SUMBER (account_number)
-   * Ambil 4 digit terakhir dari Rekening Sumber / Sumber Dana pengirim jika tersedia (misal "0182"). Jika tidak ada, gunakan "MANDIRI".
+7. REKENING (account_number):
+   4 digit terakhir rekening sumber (misal "0182"). Jika tidak ada, isi "MANDIRI".
 
-8. REFERENCE ID (reference_id)
-   * Ambil nomor referensi transaksi / no resi / STAN resmi yang tertera.
+8. NO REFERENSI (reference_id):
+   Nomor referensi / No. Resi transaksi jika tertera, atau null jika tidak ada.
 
 Subjek Email: ${subject}
 Isi Email:
 ${cleanedBody}
 
 OUTPUT JSON:
-Untuk transaksi valid:
+Jika valid:
 {
   "valid": true,
   "type": "expense" | "income",
   "amount": <number>,
-  "admin_fee": <number>,
   "date": "<ISO_8601>",
   "description": "<string>",
   "category": "<string>",
@@ -90,12 +84,12 @@ Untuk transaksi valid:
   "reference_id": "<string atau null>"
 }
 
-Untuk bukan transaksi valid:
+Jika tidak valid:
 {
   "valid": false
 }`;
 
-  // Waterfall fallback: Dari model tertinggi (3.8 Flash) bertahap ke Flash-Lite
+  // Waterfall fallback: Dari model tertinggi bertahap ke Flash-Lite
   const candidateModels = [
     'gemini-3.5-flash-lite',
     'gemini-3.1-flash-lite',
